@@ -15,9 +15,9 @@ app.use(bodyParser.json());
 
 // In-memory stores
 const workers = [];             // fallback store
-const sessions = new Map();    // sessions are fine in memory
+const sessions = new Map();     // sessions are fine in memory
 
-let workersCollection = null;  // Mongo collection when available
+let workersCollection = null;   // Mongo collection when available
 
 function createSessionId() {
   return 'sess_' + Math.random().toString(36).slice(2);
@@ -59,12 +59,28 @@ app.post('/api/profile/answer', (req, res) => {
 
 // 3) Complete profile and save worker (MongoDB if available, else memory)
 app.post('/api/profile/complete', async (req, res) => {
-  const { sessionId } = req.body || {};
-  if (!sessionId || !sessions.has(sessionId)) {
-    return res.status(400).json({ error: 'Invalid sessionId' });
+  const { sessionId, draft: directDraft } = req.body || {};
+
+  let draft;
+
+  // Prefer session draft if we have a valid sessionId
+  if (sessionId && sessions.has(sessionId)) {
+    draft = sessions.get(sessionId);
+  } else if (directDraft) {
+    // Fallback: allow frontend to send the full draft directly
+    draft = directDraft;
+  } else {
+    console.error(
+      'Complete called with invalid sessionId or missing draft',
+      sessionId,
+      'sessions size:',
+      sessions.size
+    );
+    return res
+      .status(400)
+      .json({ error: 'Invalid sessionId or draft missing' });
   }
 
-  const draft = sessions.get(sessionId);
   const trustScore = calculateTrustScore(draft);
 
   const worker = {
@@ -85,7 +101,10 @@ app.post('/api/profile/complete', async (req, res) => {
       workers.push(worker);
     }
 
-    sessions.delete(sessionId);
+    if (sessionId) {
+      sessions.delete(sessionId);
+    }
+
     res.json({ worker });
   } catch (err) {
     console.error('Error saving worker', err);

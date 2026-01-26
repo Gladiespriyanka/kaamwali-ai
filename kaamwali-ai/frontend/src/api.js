@@ -4,7 +4,7 @@
 const API_BASE =
   window.location.hostname === "localhost"
     ? "http://localhost:4000"
-    : "https://kaamwali-ai-backend.onrender.com";;
+    : "https://kaamwali-ai-backend.onrender.com";
 
 // Metrics (you can make this hit your backend or just stub it)
 export async function getMetrics() {
@@ -35,15 +35,27 @@ export async function searchWorkers(city, skill) {
 }
 
 // Called when worker finishes onboarding
-export async function completeWorkerProfile(sessionId) {
+// Optional `draft` argument for future use if sessions are flaky
+export async function completeWorkerProfile(sessionId, draft) {
+  const body = draft ? { sessionId, draft } : { sessionId };
+
   const res = await fetch(`${API_BASE}/api/profile/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify(body),
   });
+
   if (!res.ok) {
-    throw new Error("Failed to complete profile");
+    let errBody = {};
+    try {
+      errBody = await res.json();
+    } catch {
+      // ignore JSON parse error
+    }
+    console.error("completeWorkerProfile error", res.status, errBody);
+    throw new Error(errBody.error || "Failed to complete profile");
   }
+
   const data = await res.json();
   return data.worker;
 }
