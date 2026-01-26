@@ -1,7 +1,7 @@
 // src/api.js
 
 // Use Render backend URL in production, fallback to localhost for local dev
-const API_BASE =
+export const API_BASE =
   window.location.hostname === "localhost"
     ? "http://localhost:4000"
     : "https://kaamwali-ai-backend.onrender.com";
@@ -35,7 +35,7 @@ export async function searchWorkers(city, skill) {
 }
 
 // Called when worker finishes onboarding
-// Optional `draft` argument for future use if sessions are flaky
+// Always try to send both sessionId and latest draft
 export async function completeWorkerProfile(sessionId, draft) {
   const body = draft ? { sessionId, draft } : { sessionId };
 

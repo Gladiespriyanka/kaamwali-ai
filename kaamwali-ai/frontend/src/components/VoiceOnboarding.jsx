@@ -1,9 +1,7 @@
 // src/components/VoiceOnboarding.jsx
 import React, { useState } from 'react';
 import { useSpeechToText } from '../hooks/useSpeechToText';
-import { completeWorkerProfile } from '../api';
-
-const API_BASE = 'http://localhost:4000';
+import { API_BASE, completeWorkerProfile } from '../api';
 
 const FIELD_QUESTIONS = {
   name: {
@@ -34,8 +32,6 @@ const FIELD_QUESTIONS = {
     hi: 'Aap kaun se time par kaam kar sakti hain? Subah, dopahar, ya shaam? Kaun se din kaam kar sakti hain?',
     en: 'At what time can you work? Morning, afternoon, or evening? And which days of the week?'
   },
-
-  // ✅ NEW FIELDS
   emergencyContact: {
     hi: 'Emergency ke liye kis ka phone number diya ja sakta hai? Naam aur number batayein.',
     en: 'Who can we call in an emergency? Please say their name and phone number.'
@@ -50,11 +46,10 @@ const FIELD_QUESTIONS = {
   }
 };
 
-
 const VoiceOnboarding = ({ onProfileReady }) => {
   const { listening, text, setText, startListening, stopListening } = useSpeechToText();
 
-  // step: initial = free speech, asking = follow‑up questions, finalizing = spinner
+  // step: initial = free speech, asking = follow-up questions, finalizing = spinner
   const [step, setStep] = useState('initial');
   const [sessionId, setSessionId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -64,10 +59,10 @@ const VoiceOnboarding = ({ onProfileReady }) => {
   const [error, setError] = useState('');
 
   // helper: call backend /api/profile/complete and notify parent
-  const handleProfileComplete = async (sessId) => {
+  const handleProfileComplete = async (sessId, latestDraft) => {
     try {
       setStep('finalizing');
-      const worker = await completeWorkerProfile(sessId || sessionId);
+      const worker = await completeWorkerProfile(sessId || sessionId, latestDraft || draft);
       onProfileReady(worker);
     } catch (err) {
       console.error(err);
@@ -77,7 +72,7 @@ const VoiceOnboarding = ({ onProfileReady }) => {
     }
   };
 
-  // FIRST step: send free‑speech text to /api/profile/start
+  // FIRST step: send free-speech text to /api/profile/start
   const startInitialDraft = async () => {
     if (!text.trim()) {
       alert('Please speak some details first.');
@@ -104,7 +99,7 @@ const VoiceOnboarding = ({ onProfileReady }) => {
         setText('');
       } else {
         // nothing missing -> complete profile immediately
-        await handleProfileComplete(data.sessionId);
+        await handleProfileComplete(data.sessionId, data.draft);
       }
     } catch (e) {
       console.error(e);
@@ -114,7 +109,7 @@ const VoiceOnboarding = ({ onProfileReady }) => {
     }
   };
 
-  // FOLLOW‑UP questions: /api/profile/answer
+  // FOLLOW-UP questions: /api/profile/answer
   const askNextField = async () => {
     if (!text.trim()) {
       alert('Please answer using your voice first.');
@@ -147,8 +142,8 @@ const VoiceOnboarding = ({ onProfileReady }) => {
       if (data.missingFields && data.missingFields.length > 0) {
         setCurrentField(data.missingFields[0]);
       } else {
-        // all questions done -> complete profile
-        await handleProfileComplete(data.sessionId);
+        // all questions done -> complete profile with latest draft
+        await handleProfileComplete(data.sessionId, data.draft);
       }
     } catch (e) {
       console.error(e);

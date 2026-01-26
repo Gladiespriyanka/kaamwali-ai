@@ -1,3 +1,4 @@
+// backend/index.js
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -60,6 +61,13 @@ app.post('/api/profile/answer', (req, res) => {
 // 3) Complete profile and save worker (MongoDB if available, else memory)
 app.post('/api/profile/complete', async (req, res) => {
   const { sessionId, draft: directDraft } = req.body || {};
+
+  console.log(
+    'PROFILE COMPLETE payload:',
+    { sessionIdPresent: !!sessionId, hasDirectDraft: !!directDraft },
+    'sessions size:',
+    sessions.size
+  );
 
   let draft;
 
