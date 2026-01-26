@@ -1,7 +1,10 @@
 // frontend/src/components/WorkersList.jsx
 import React, { useEffect, useState } from 'react';
 
-const API_BASE = 'http://localhost:4000'; // adjust if different
+const API_BASE =
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:4000'
+    : 'https://kaamwali-ai-backend.onrender.com';
 
 export default function WorkersList() {
   const [workers, setWorkers] = useState([]);
