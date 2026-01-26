@@ -1,18 +1,18 @@
-// db.js
+// backend/db.js
 import { MongoClient } from 'mongodb';
+import dotenv from 'dotenv';
 
-// Your MongoDB Atlas connection string
-const uri =
-  'mongodb+srv://gladies:gladiespriyanka@cluster0.glvbn1c.mongodb.net/?appName=Cluster0';
+dotenv.config(); // this must be BEFORE using process.env
+
+const uri = process.env.MONGODB_URI; // <-- must not be undefined
 
 const client = new MongoClient(uri);
-
 let db;
 
 export async function connectDB() {
   if (!db) {
     await client.connect();
-    db = client.db('kaamwali_ai'); // database name
+    db = client.db('kaamwali_ai');
   }
   return db;
 }
