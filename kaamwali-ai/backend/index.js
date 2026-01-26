@@ -1,5 +1,3 @@
-// backend/index.js
-
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -16,7 +14,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // In-memory stores
-const workers = [];            // fallback store
+const workers = [];             // fallback store
 const sessions = new Map();    // sessions are fine in memory
 
 let workersCollection = null;  // Mongo collection when available
@@ -150,7 +148,6 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 
-
 // Start server + try Mongo; fall back to memory-only if TLS fails
 (async () => {
   try {
@@ -159,6 +156,7 @@ const PORT = process.env.PORT || 4000;
     console.log('DB connected');
   } catch (err) {
     console.error('MongoDB connection failed, running in memory-only mode');
+    console.error(err); // Added detailed error logging
     workersCollection = null;
   }
 

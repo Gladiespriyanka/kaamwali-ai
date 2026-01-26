@@ -1,12 +1,23 @@
 // backend/db.js
-import { MongoClient } from 'mongodb';
+import { MongoClient, ServerApiVersion } from 'mongodb';
 import dotenv from 'dotenv';
 
-dotenv.config(); // this must be BEFORE using process.env
+dotenv.config();
 
-const uri = process.env.MONGODB_URI; // <-- must not be undefined
+const uri = process.env.MONGODB_URI;
 
-const client = new MongoClient(uri);
+if (!uri) {
+  throw new Error('MONGODB_URI is not defined. Check your .env file.');
+}
+
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
+
 let db;
 
 export async function connectDB() {
