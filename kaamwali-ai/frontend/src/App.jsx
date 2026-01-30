@@ -1,11 +1,23 @@
+// src/App.jsx
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate
+} from 'react-router-dom';
 import './styles/main.css';
+
 import Landing from './components/Landing';
 import VoiceOnboarding from './components/VoiceOnboarding';
 import WorkerProfile from './components/WorkerProfile';
-import WorkersList from './components/WorkersList'; // Your existing component for /employers
-import { searchWorkers, getMetrics } from './api';
+import WorkersList from './components/WorkersList';
+import AuthPage from './components/AuthPage';
+import WorkerDashboard from './components/WorkerDashboard';      // NEW
+import EmployerDashboard from './components/EmployerDashboard';  // NEW
+import { getMetrics } from './api';
+
+/* ---------- MAIN APP CONTENT (after login) ---------- */
 
 const AppContent = () => {
   const [mode, setMode] = useState('landing');
@@ -19,10 +31,10 @@ const AppContent = () => {
       .catch(() => {});
   }, []);
 
-  // Map URL changes to mode (e.g., /worker-onboard → setMode)
+  // Map URL changes to mode (within the "app" area)
   useEffect(() => {
     const pathToMode = {
-      '/': 'landing',
+      '/app': 'landing',
       '/worker-onboard': 'worker-onboard',
       '/worker-profile': 'worker-profile',
       '/employers': 'employer'
@@ -50,6 +62,7 @@ const AppContent = () => {
 
   return (
     <div>
+      {/* keep your existing topbar */}
       <header className="topbar">
         <div className="topbar-logo">KaamWali.AI</div>
         <div className="topbar-right">
@@ -89,26 +102,54 @@ const AppContent = () => {
           </div>
         )}
 
-       {mode === 'employer' && (
-  <>
-    {/* Or <div className="layout layout-two"><EmployerSearch ... /></div> */}
-    <WorkersList />
-  </>
-)}
+        {mode === 'employer' && (
+          <>
+            <WorkersList />
+          </>
+        )}
       </main>
     </div>
   );
 };
 
-const App = () => (
-  <Router>
+/* ---------- ROUTES: AUTH FIRST, THEN APP ---------- */
+
+const AppRoutes = () => {
+  const navigate = useNavigate();
+
+  // called when login / signup finishes successfully
+  const handleAuthSuccess = (userType) => {
+    if (userType === 'worker') {
+      navigate('/worker-dashboard');    // Worker section -> WorkerDashboard
+    } else {
+      navigate('/employer-dashboard');  // Employer section -> EmployerDashboard
+    }
+  };
+
+  return (
     <Routes>
-      <Route path="/" element={<AppContent />} />
+      {/* First page: login / signup */}
+      <Route path="/" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
+
+      {/* Worker & Employer dashboards */}
+      <Route path="/worker-dashboard" element={<WorkerDashboard />} />
+      <Route path="/employer-dashboard" element={<EmployerDashboard />} />
+
+      {/* Main app flows (metrics + voice onboarding + profile + employers) */}
+      <Route path="/app" element={<AppContent />} />
       <Route path="/worker-onboard" element={<AppContent />} />
       <Route path="/worker-profile" element={<AppContent />} />
       <Route path="/employers" element={<AppContent />} />
-      {/* Add more as needed */}
+
+      {/* Any unknown URL → go to auth */}
+      <Route path="*" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
     </Routes>
+  );
+};
+
+const App = () => (
+  <Router>
+    <AppRoutes />
   </Router>
 );
 

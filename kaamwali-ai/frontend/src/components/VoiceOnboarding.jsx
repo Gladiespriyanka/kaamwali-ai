@@ -1,7 +1,9 @@
 // src/components/VoiceOnboarding.jsx
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSpeechToText } from '../hooks/useSpeechToText';
 import { API_BASE, completeWorkerProfile } from '../api';
+import '../styles/voiceOnboarding.css';
 
 const FIELD_QUESTIONS = {
   name: {
@@ -47,6 +49,7 @@ const FIELD_QUESTIONS = {
 };
 
 const VoiceOnboarding = ({ onProfileReady }) => {
+  const navigate = useNavigate();
   const { listening, text, setText, startListening, stopListening } = useSpeechToText();
 
   // step: initial = free speech, asking = follow-up questions, finalizing = spinner
@@ -154,49 +157,54 @@ const VoiceOnboarding = ({ onProfileReady }) => {
   };
 
   const renderInitialStep = () => (
-    <div className="card">
-      <h2 className="card-title">Apni jaankari sirf awaaz se bataiye</h2>
-      <p className="card-sub">
-        Example (Hindi): “Mera naam Sunita hai, main 5 saal se Bhiwani mein
-        safai aur khana banana ka kaam karti hoon, subah 7 se 11 baje tak
-        available hoon.”
+    <div className="voice-card">
+      <h2 className="voice-title">Apni jaankari sirf awaaz se bataiye</h2>
+      <p className="voice-sub">
+        Example (Hindi): “Mera naam Sunita hai, main 5 saal se Bhiwani mein safai
+        aur khana banana ka kaam karti hoon, subah 7 se 11 baje tak available hoon.”
       </p>
-      <p className="card-sub">
-        Example (English): “My name is Sunita, I have 5 years of experience in
-        cleaning and cooking in Bhiwani. I can work in the morning.”
+      <p className="voice-sub-muted">
+        Example (English): “My name is Sunita, I have 5 years of experience in cleaning
+        and cooking in Bhiwani. I can work in the morning.”
       </p>
 
       <div className="voice-controls">
         <button
           type="button"
-          className={`btn-small ${listening ? 'btn-danger' : 'btn-primary'}`}
+          className={`voice-btn voice-btn-small ${
+            listening ? 'voice-btn-danger' : 'voice-btn-primary'
+          }`}
           onClick={listening ? stopListening : startListening}
           disabled={loading}
         >
-          {listening ? 'Stop Recording' : 'Tap to Speak'}
+          {listening ? 'Stop recording' : 'Tap to speak'}
         </button>
-        <span className="hint">
+        <span className="voice-hint">
           {listening ? 'Listening…' : 'Tap and speak in Hindi or simple English'}
         </span>
       </div>
 
       <textarea
-        className="textarea"
+        className="voice-textarea"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Your spoken text will appear here so you can review it."
+        placeholder="Your spoken text will appear here so you can review it before continuing."
       />
 
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="voice-error">{error}</p>}
 
       <button
         type="button"
-        className="btn"
+        className="voice-btn voice-btn-primary"
         onClick={startInitialDraft}
         disabled={loading}
       >
         {loading ? 'Understanding your details…' : 'Continue'}
       </button>
+
+      <p className="voice-small">
+        Tip: Boliye jaise aap kisi ghar wale ko apne baare mein bata rahi hain.
+      </p>
     </div>
   );
 
@@ -207,23 +215,27 @@ const VoiceOnboarding = ({ onProfileReady }) => {
     const stepNumber = filled + 1;
 
     return (
-      <div className="card">
-        <h2 className="card-title">
+      <div className="voice-card">
+        <p className="voice-progress">
           Step {stepNumber} of {total}
-        </h2>
-        <p className="card-sub">{q.hi}</p>
-        <p className="card-sub">{q.en}</p>
+        </p>
+        <h2 className="voice-title">Thodi aur jaankari chahiye</h2>
+
+        <p className="voice-sub">{q.hi}</p>
+        <p className="voice-sub-muted">{q.en}</p>
 
         <div className="voice-controls">
           <button
             type="button"
-            className={`btn-small ${listening ? 'btn-danger' : 'btn-primary'}`}
+            className={`voice-btn voice-btn-small ${
+              listening ? 'voice-btn-danger' : 'voice-btn-primary'
+            }`}
             onClick={listening ? stopListening : startListening}
             disabled={loading}
           >
-            {listening ? 'Stop Recording' : 'Tap to Answer'}
+            {listening ? 'Stop recording' : 'Tap to answer'}
           </button>
-          <span className="hint">
+          <span className="voice-hint">
             {listening
               ? 'Listening…'
               : 'Answer in Hindi or English using your voice'}
@@ -231,24 +243,24 @@ const VoiceOnboarding = ({ onProfileReady }) => {
         </div>
 
         <textarea
-          className="textarea"
+          className="voice-textarea"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Your answer will appear here after speaking."
+          placeholder="Your answer will appear here after speaking. You can edit if needed."
         />
 
-        {error && <p className="error-text">{error}</p>}
+        {error && <p className="voice-error">{error}</p>}
 
         <button
           type="button"
-          className="btn"
+          className="voice-btn voice-btn-primary"
           onClick={askNextField}
           disabled={loading}
         >
-          {loading ? 'Saving your answer…' : 'Save Answer'}
+          {loading ? 'Saving your answer…' : 'Save answer'}
         </button>
 
-        <p className="text-small" style={{ marginTop: 8 }}>
+        <p className="voice-small">
           Filled so far: {filled} / {total}
         </p>
       </div>
@@ -256,21 +268,33 @@ const VoiceOnboarding = ({ onProfileReady }) => {
   };
 
   const renderFinalizing = () => (
-    <div className="card">
-      <h2 className="card-title">Creating your profile…</h2>
-      <p className="card-sub">
-        We are putting together your answers into a professional profile.
+    <div className="voice-card">
+      <h2 className="voice-finalizing-title">Creating your profile…</h2>
+      <p className="voice-finalizing-sub">
+        We are putting together your answers into a clear profile that employers can
+        understand quickly.
       </p>
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="voice-error">{error}</p>}
     </div>
   );
 
   return (
-    <>
-      {step === 'initial' && renderInitialStep()}
-      {step === 'asking' && renderAskingStep()}
-      {step === 'finalizing' && renderFinalizing()}
-    </>
+    <div className="voice-page">
+      <header className="voice-header">
+        <div
+          className="voice-header-logo"
+          onClick={() => navigate('/worker-dashboard')}
+        >
+          KaamWali.AI
+        </div>
+      </header>
+
+      <main className="voice-main">
+        {step === 'initial' && renderInitialStep()}
+        {step === 'asking' && renderAskingStep()}
+        {step === 'finalizing' && renderFinalizing()}
+      </main>
+    </div>
   );
 };
 
