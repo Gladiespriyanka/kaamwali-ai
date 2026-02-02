@@ -1,5 +1,3 @@
-// backend/profileParser.js
-
 const CITY_KEYWORDS = [
   'bhiwani',
   'delhi',
@@ -124,6 +122,12 @@ export function extractInitialDraft(rawText) {
     emergencyContact: null,
     comfortableWithFamilies: null,
     comfortableWithPets: null,
+    // NEW FIELDS
+    workType: null,
+    daysOff: null,
+    medicalConditions: null,
+    willingLateOrTravel: null,
+    previousEmployerRef: null,
     rawSegments: [rawText]
   };
 
@@ -215,6 +219,28 @@ export function updateDraftWithField(draft, field, answerText) {
         answerText.trim() || newDraft.comfortableWithPets;
       break;
     }
+    case 'workType': {
+      newDraft.workType = answerText.trim() || newDraft.workType;
+      break;
+    }
+    case 'daysOff': {
+      newDraft.daysOff = answerText.trim() || newDraft.daysOff;
+      break;
+    }
+    case 'medicalConditions': {
+      newDraft.medicalConditions = answerText.trim() || newDraft.medicalConditions;
+      break;
+    }
+    case 'willingLateOrTravel': {
+      newDraft.willingLateOrTravel =
+        answerText.trim() || newDraft.willingLateOrTravel;
+      break;
+    }
+    case 'previousEmployerRef': {
+      newDraft.previousEmployerRef =
+        answerText.trim() || newDraft.previousEmployerRef;
+      break;
+    }
     default:
       break;
   }
@@ -238,6 +264,13 @@ export function computeMissingFields(draft) {
   if (!draft.emergencyContact) missing.push('emergencyContact');
   if (draft.comfortableWithFamilies == null) missing.push('comfortableWithFamilies');
   if (draft.comfortableWithPets == null) missing.push('comfortableWithPets');
+
+  // NEW REQUIRED FIELDS
+  if (!draft.workType) missing.push('workType');
+  if (!draft.daysOff) missing.push('daysOff');
+  if (!draft.medicalConditions) missing.push('medicalConditions');
+  if (!draft.willingLateOrTravel) missing.push('willingLateOrTravel');
+  if (!draft.previousEmployerRef) missing.push('previousEmployerRef');
 
   return missing;
 }
