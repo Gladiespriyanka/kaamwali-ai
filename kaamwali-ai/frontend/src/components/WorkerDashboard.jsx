@@ -13,6 +13,9 @@ const WorkerDashboard = () => {
       .catch(() => {});
   }, []);
 
+
+
+  
   return (
     <>
       {/* Ratio bar (same as AppContent) */}

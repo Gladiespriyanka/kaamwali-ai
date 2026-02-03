@@ -2,6 +2,10 @@
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import path from "path";
+import fs from "fs";
+import { ObjectId } from "mongodb";
+import generateWorkerPDF from './generateWorkerPDF.js';
 
 import {
   extractInitialDraft,
@@ -13,6 +17,16 @@ import { connectDB } from './db.js';
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+app.use(
+  "/uploads",
+  express.static(path.join(process.cwd(), "backend/backend/uploads"))
+);
+
+const uploadsDir = path.join(process.cwd(), "backend/backend/uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // In-memory stores
 const workers = [];             // fallback store
@@ -97,6 +111,15 @@ app.post('/api/profile/complete', async (req, res) => {
     createdAt: new Date().toISOString()
   };
 
+   worker.safety = {
+  emergencyContactAdded: !!draft.emergencyContact,
+  emergencyContact: draft.emergencyContact
+};
+console.log(
+  'Emergency contact in worker:',
+  worker.emergencyContact
+);
+
   try {
     if (workersCollection) {
       // Save to MongoDB
@@ -105,7 +128,7 @@ app.post('/api/profile/complete', async (req, res) => {
     } else {
       // Fallback: save in memory
       const id = workers.length + 1;
-      worker.id = id;
+      worker._id = id;
       workers.push(worker);
     }
 
@@ -168,6 +191,37 @@ app.get('/api/workers', async (req, res) => {
   }
 });
 
+app.post('/api/workers/:id/generate-pdf', async (req, res) => {
+  const { id } = req.params;
+
+  let worker = null;
+
+if (workersCollection) {
+  worker = await workersCollection.findOne({ _id: new ObjectId(id) });
+} else {
+  worker = workers.find(w => String(w._id) === String(id));
+}
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+  try {
+    // generate PDF (example using pdfkit or html-pdf)
+    const pdfDir = path.join(process.cwd(), 'backend/backend/uploads');
+if (!fs.existsSync(pdfDir)) {
+  fs.mkdirSync(pdfDir, { recursive: true });
+}
+
+const pdfPath = path.join(pdfDir, `worker_${id}.pdf`);
+    await generateWorkerPDF(worker, pdfPath);// implement this
+    const pdfUrl = `/uploads/worker_${id}.pdf`;
+res.json({ pdfUrl }); // <-- this must be correct
+  } catch (err) {
+    console.error('PDF generation error', err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
+
+
 // Health check
 app.get('/', (req, res) => {
   res.send('KaamWali.AI backend running');
@@ -190,4 +244,7 @@ const PORT = process.env.PORT || 4000;
   app.listen(PORT, () => {
     console.log(`Backend running on ${PORT}`);
   });
+
+
+
 })();

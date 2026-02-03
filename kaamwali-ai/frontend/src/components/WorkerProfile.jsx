@@ -1,8 +1,10 @@
 // components/WorkerProfile.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import SharePoster from './SharePoster';
 
-const WorkerProfile = ({ worker, onBack }) => {
+const WorkerProfile = ({ worker: initialWorker, onBack }) => {
+  const [worker, setWorker] = useState(initialWorker);
+
   if (!worker) return null;
 
   const createdDate = worker.createdAt
@@ -12,6 +14,38 @@ const WorkerProfile = ({ worker, onBack }) => {
   const lastUpdated =
     worker.reliabilitySignals?.lastUpdated &&
     new Date(worker.reliabilitySignals.lastUpdated).toLocaleDateString();
+
+ const generatePdf = async () => {
+  if (!worker?._id) {
+    alert("Worker ID missing");
+    return;
+  }
+
+  const res = await fetch(
+    `${API_BASE}/api/workers/${worker._id}/generate-pdf`,
+    { method: "POST" }
+  );
+
+  if (!res.ok) {
+    alert("PDF generation failed");
+    return;
+  }
+
+  const data = await res.json();
+  const url = `${API_BASE}${data.pdfUrl}`;
+
+  // ✅ THIS PART WAS MISSING
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `worker_${worker._id}.pdf`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+
+
 
   return (
     <div className="grid-two">
@@ -47,8 +81,8 @@ const WorkerProfile = ({ worker, onBack }) => {
               Joined: {createdDate}
             </p>
             <p className="text-small">
-              City: {worker.city} · Area: {worker.area || 'Not specified'}
-            </p>
+                    Location: {worker.cityArea || 'Not specified'}
+            </p>     
             <p className="text-small">
               Experience: {worker.experienceYears} years
             </p>
@@ -61,22 +95,22 @@ const WorkerProfile = ({ worker, onBack }) => {
           <p className="text-small">
             Language: Hindi · Tone: Polite · Duration: ~12 sec
           </p>
-          <p className="text-small">
+          {/* <p className="text-small">
             Employers can trust how she speaks, not just what is written.
-          </p>
-          <button className="btn-small btn-outline" disabled>
+          </p> */}
+          {/* <button className="btn-small btn-outline" disabled>
             ▶ Play sample (demo)
-          </button>
+          </button> */}
         </div>
 
         {/* AI Summary */}
-        <div className="section">
+        {/* <div className="section">
           <p className="section-title">AI Summary</p>
           <p className="bio-text">
             {worker.aiSummary ||
               'This worker has experience in daily household cleaning and basic cooking assistance, communicates politely, and is available for flexible work in her local area.'}
           </p>
-        </div>
+        </div> */}
 
         {/* Experience proof */}
         <div className="section">
@@ -159,7 +193,7 @@ const WorkerProfile = ({ worker, onBack }) => {
           </p>
         </div>
 
-        <div className="section">
+        {/* <div className="section">
           <p className="section-title">Reliability Signals</p>
           <ul className="list">
             <li>✔ Responds clearly</li>
@@ -169,7 +203,7 @@ const WorkerProfile = ({ worker, onBack }) => {
               {lastUpdated || createdDate}
             </li>
           </ul>
-        </div>
+        </div> */}
 
         {/* Trust Score guidance */}
         <div className="section">
@@ -177,11 +211,11 @@ const WorkerProfile = ({ worker, onBack }) => {
           <p className="text-small">
             Current: {worker.trustScore} / 100
           </p>
-          <ul className="list">
+          {/* <ul className="list">
             <li>+10 – Add a clear profile photo</li>
             <li>+15 – Complete full voice interview</li>
             <li>+10 – Receive one positive review</li>
-          </ul>
+          </ul> */}
         </div>
 
         {/* Safety & emergency */}
@@ -189,8 +223,7 @@ const WorkerProfile = ({ worker, onBack }) => {
           <p className="section-title">Safety & Preferences</p>
           <ul className="list">
             <li>
-              Emergency contact:{' '}
-              {worker.safety?.emergencyContactAdded ? 'Added' : 'Not added'}
+                 Emergency contact: {worker.emergencyContact ? 'Added' : 'Not added'}
             </li>
             <li>
               Comfortable working with families:{' '}
@@ -209,9 +242,12 @@ const WorkerProfile = ({ worker, onBack }) => {
           <p className="bio-text">{worker.bio}</p>
         </div>
       </div>
+       {/* <button onClick={generatePdf}>
+  Generate & Download PDF
+</button> */}
 
       {/* RIGHT: Share block */}
-      <SharePoster worker={worker} />
+      {worker && <SharePoster worker={worker} />}
     </div>
   );
 };

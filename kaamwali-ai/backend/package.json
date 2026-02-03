@@ -8,11 +8,13 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "body-parser": "^2.2.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "firebase-admin": "^12.0.0",
     "mongodb": "^7.0.0",
+    "puppeteer": "^24.36.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
