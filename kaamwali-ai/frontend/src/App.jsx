@@ -8,13 +8,14 @@ import {
 } from 'react-router-dom';
 import './styles/main.css';
 
-import Landing from './components/Landing';
+// import Landing from './components/Landing';
 import VoiceOnboarding from './components/VoiceOnboarding';
 import WorkerProfile from './components/WorkerProfile';
 import WorkersList from './components/WorkersList';
 import AuthPage from './components/AuthPage';
 import WorkerDashboard from './components/WorkerDashboard';      // NEW
 import EmployerDashboard from './components/EmployerDashboard';  // NEW
+import Feedback from './components/Feedback';
 import { getMetrics } from './api';
 
 /* ---------- MAIN APP CONTENT (after login) ---------- */
@@ -33,15 +34,16 @@ const AppContent = () => {
 
   // Map URL changes to mode (within the "app" area)
   useEffect(() => {
-    const pathToMode = {
-      '/app': 'landing',
-      '/worker-onboard': 'worker-onboard',
-      '/worker-profile': 'worker-profile',
-      '/employers': 'employer'
-    };
-    const currentMode = pathToMode[window.location.pathname] || 'landing';
-    setMode(currentMode);
-  }, [window.location.pathname]);
+  const pathToMode = {
+    '/app': 'landing',
+    '/worker-onboard': 'worker-onboard',
+    '/worker-profile': 'worker-profile'
+  };
+
+  if (pathToMode[window.location.pathname]) {
+    setMode(pathToMode[window.location.pathname]);
+  }
+}, []);
 
   const handleWorkerFlowStart = () => {
     setMode('worker-onboard');
@@ -50,7 +52,7 @@ const AppContent = () => {
   };
 
   const handleEmployerFlowStart = () => {
-    navigate('/employers');
+    navigate('/');
   };
 
   const handleProfileReady = (newWorker) => {
@@ -102,11 +104,7 @@ const AppContent = () => {
           </div>
         )}
 
-        {mode === 'employer' && (
-          <>
-            <WorkersList />
-          </>
-        )}
+        
       </main>
     </div>
   );
@@ -134,12 +132,13 @@ const AppRoutes = () => {
       {/* Worker & Employer dashboards */}
       <Route path="/worker-dashboard" element={<WorkerDashboard />} />
       <Route path="/employer-dashboard" element={<EmployerDashboard />} />
-
+<Route path="/for-employers" element={<WorkersList />} />
+<Route path="/feedback" element={<Feedback />} />
       {/* Main app flows (metrics + voice onboarding + profile + employers) */}
       <Route path="/app" element={<AppContent />} />
       <Route path="/worker-onboard" element={<AppContent />} />
       <Route path="/worker-profile" element={<AppContent />} />
-      <Route path="/employers" element={<AppContent />} />
+     
 
       {/* Any unknown URL → go to auth */}
       <Route path="*" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
