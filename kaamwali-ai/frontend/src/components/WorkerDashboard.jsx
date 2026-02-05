@@ -2,10 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMetrics } from '../api';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const WorkerDashboard = () => {
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState(null);
+
+  const { messages } = useLanguage();
+  const t = (messages && messages.workerDashboard) || {};
 
   useEffect(() => {
     getMetrics()
@@ -13,9 +17,6 @@ const WorkerDashboard = () => {
       .catch(() => {});
   }, []);
 
-
-
-  
   return (
     <>
       {/* Ratio bar (same as AppContent) */}
@@ -24,11 +25,17 @@ const WorkerDashboard = () => {
         <div className="topbar-right">
           {metrics ? (
             <span className="topbar-tagline">
-              {metrics.workersCount} women onboarded · {metrics.employersCount} homes reached
+              {metrics.workersCount} {/* keep number */}
+              {' '}
+              {t.taglineWorkersCount || 'women onboarded'}
+              {' · '}
+              {metrics.employersCount}
+              {' '}
+              {t.taglineEmployersCount || 'homes reached'}
             </span>
           ) : (
             <span className="topbar-tagline">
-              Voice‑first jobs for domestic workers
+              {t.tagline}
             </span>
           )}
         </div>
@@ -45,21 +52,21 @@ const WorkerDashboard = () => {
               className="kw-nav-link"
               onClick={() => navigate('/worker-profile')}
             >
-              My profile
+              {t.myProfile}
             </button>
             <button
               type="button"
               className="kw-nav-link"
               onClick={() => navigate('/worker-onboard')}
             >
-              Work opportunities
+              {t.workOpportunities}
             </button>
             <button
               type="button"
               className="kw-nav-cta"
               onClick={() => navigate('/worker-onboard')}
             >
-              Try demo
+              {t.tryDemo}
             </button>
           </nav>
         </header>
@@ -70,10 +77,10 @@ const WorkerDashboard = () => {
           <section className="kw-hero">
             <div className="kw-hero-left">
               <h1 className="kw-hero-title">
-                Voice-first hiring for domestic workers
+                {t.heroTitle}
               </h1>
               <p className="kw-hero-subtitle">
-                Keep your profile updated, improve your trust score, and discover better work opportunities in nearby areas.
+                {t.heroSubtitle}
               </p>
               <div className="kw-hero-actions">
                 <button
@@ -81,14 +88,14 @@ const WorkerDashboard = () => {
                   className="kw-btn kw-btn-primary"
                   onClick={() => navigate('/worker-onboard')}
                 >
-                  Start voice onboarding
+                  {t.startVoice}
                 </button>
                 <button
                   type="button"
                   className="kw-btn kw-btn-outline"
                   onClick={() => navigate('/worker-profile')}
                 >
-                  View my profile
+                  {t.viewProfile}
                 </button>
               </div>
             </div>
@@ -97,57 +104,63 @@ const WorkerDashboard = () => {
               {/* Mini dashboard preview card */}
               <div className="kw-app-preview">
                 <div className="kw-app-preview-header">
-                  <div className="kw-app-preview-title">KaamWali.AI dashboard</div>
-                  <span className="kw-app-preview-badge">Worker view</span>
+                  <div className="kw-app-preview-title">{t.dashboardTitle}</div>
+                  <span className="kw-app-preview-badge">{t.workerView}</span>
                 </div>
 
                 <div className="kw-filters-row">
-                  <div className="kw-filter-pill">City</div>
-                  <div className="kw-filter-pill">Skill</div>
-                  <div className="kw-filter-pill">Experience</div>
+                  <div className="kw-filter-pill">{t.city}</div>
+                  <div className="kw-filter-pill">{t.skill}</div>
+                  <div className="kw-filter-pill">{t.experience}</div>
                 </div>
 
                 <div className="kw-workers-list">
                   <div className="kw-worker-row">
                     <div>
-                      <div className="kw-worker-name">Your profile</div>
+                      <div className="kw-worker-name">{t.yourProfile}</div>
                       <div className="kw-worker-meta">
-                        Complete your details to get more calls
+                        {t.completeDetails}
                       </div>
                       <div className="kw-worker-tags">
-                        <span className="kw-tag">Profile</span>
-                        <span className="kw-tag">Trust score</span>
+                        <span className="kw-tag">{t.profile}</span>
+                        <span className="kw-tag">{t.trustScore}</span>
                       </div>
                     </div>
-                    <div className="kw-trust-pill kw-trust-medium">In progress</div>
+                    <div className="kw-trust-pill kw-trust-medium">
+                      {t.inProgress}
+                    </div>
                   </div>
 
                   <div className="kw-worker-row">
                     <div>
-                      <div className="kw-worker-name">New opportunities</div>
+                      <div className="kw-worker-name">{t.newOpportunities}</div>
                       <div className="kw-worker-meta">
-                        Homes nearby looking for help
+                        {t.nearbyHomes}
                       </div>
                       <div className="kw-worker-tags">
-                        <span className="kw-tag">Nearby</span>
-                        <span className="kw-tag">Active</span>
+                        <span className="kw-tag">{t.nearby}</span>
+                        <span className="kw-tag">{t.active}</span>
                       </div>
                     </div>
-                    <div className="kw-trust-pill kw-trust-high">Coming soon</div>
+                    <div className="kw-trust-pill kw-trust-high">
+                      {t.comingSoon}
+                    </div>
                   </div>
 
                   <div className="kw-worker-row">
                     <div>
-                      <div className="kw-worker-name">Saved homes</div>
+                      <div className="kw-worker-name">{t.savedHomes}</div>
                       <div className="kw-worker-meta">
-                        Homes you liked or worked with
+                        {t.likedHomes}
                       </div>
                       <div className="kw-worker-tags">
-                        <span className="kw-tag">Repeat work</span>
-                        <span className="kw-tag">Trusted</span>
+                        <span className="kw-tag">{t.repeatWork}</span>
+                        <span className="kw-tag">{t.trusted}</span>
                       </div>
                     </div>
-                    <div className="kw-trust-pill kw-trust-high">0 saved</div>
+                    <div className="kw-trust-pill kw-trust-high">
+                      {t.zeroSaved}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -156,30 +169,27 @@ const WorkerDashboard = () => {
 
           {/* How it works section */}
           <section id="how-it-works" className="kw-section kw-how">
-            <h2 className="kw-section-title">How KaamWali.AI works for you</h2>
+            <h2 className="kw-section-title">{t.howItWorks}</h2>
             <div className="kw-steps-row">
               <div className="kw-step-card">
                 <div className="kw-step-number">1</div>
-                <h3 className="kw-step-title">Speak, don’t type</h3>
+                <h3 className="kw-step-title">{t.step1Title}</h3>
                 <p className="kw-step-text">
-                  You answer simple questions in your native language using your voice.
-                  We capture your skills, schedule, and preferred areas in your own words.
+                  {t.step1Text}
                 </p>
               </div>
               <div className="kw-step-card">
                 <div className="kw-step-number">2</div>
-                <h3 className="kw-step-title">Profile and trust score</h3>
+                <h3 className="kw-step-title">{t.step2Title}</h3>
                 <p className="kw-step-text">
-                  KaamWali.AI turns your answers into a clear profile with a growing trust score
-                  based on completeness, verification, and activity.
+                  {t.step2Text}
                 </p>
               </div>
               <div className="kw-step-card">
                 <div className="kw-step-number">3</div>
-                <h3 className="kw-step-title">Homes find you</h3>
+                <h3 className="kw-step-title">{t.step3Title}</h3>
                 <p className="kw-step-text">
-                  Nearby homes discover you by area and skills and contact you directly
-                  for better, repeat work.
+                  {t.step3Text}
                 </p>
               </div>
             </div>

@@ -14,10 +14,12 @@ import {
   calculateTrustScore
 } from './profileParser.js';
 import { connectDB } from './db.js';
+import i18nRouter from './routes/i18n.js'; // 🔹 NEW
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use('/api', i18nRouter); // 
 
 /* ------------------ FILE UPLOADS ------------------ */
 

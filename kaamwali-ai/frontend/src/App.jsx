@@ -8,15 +8,18 @@ import {
 } from 'react-router-dom';
 import './styles/main.css';
 
-// import Landing from './components/Landing';
+import Landing from './components/Landing';
 import VoiceOnboarding from './components/VoiceOnboarding';
 import WorkerProfile from './components/WorkerProfile';
 import WorkersList from './components/WorkersList';
 import AuthPage from './components/AuthPage';
-import WorkerDashboard from './components/WorkerDashboard';      // NEW
-import EmployerDashboard from './components/EmployerDashboard';  // NEW
+import WorkerDashboard from './components/WorkerDashboard';
+import EmployerDashboard from './components/EmployerDashboard';
 import Feedback from './components/Feedback';
 import { getMetrics } from './api';
+
+// 🔹 NEW: import LanguageProvider
+import { LanguageProvider } from './contexts/LanguageContext';
 
 /* ---------- MAIN APP CONTENT (after login) ---------- */
 
@@ -34,16 +37,16 @@ const AppContent = () => {
 
   // Map URL changes to mode (within the "app" area)
   useEffect(() => {
-  const pathToMode = {
-    '/app': 'landing',
-    '/worker-onboard': 'worker-onboard',
-    '/worker-profile': 'worker-profile'
-  };
+    const pathToMode = {
+      '/app': 'landing',
+      '/worker-onboard': 'worker-onboard',
+      '/worker-profile': 'worker-profile'
+    };
 
-  if (pathToMode[window.location.pathname]) {
-    setMode(pathToMode[window.location.pathname]);
-  }
-}, []);
+    if (pathToMode[window.location.pathname]) {
+      setMode(pathToMode[window.location.pathname]);
+    }
+  }, []);
 
   const handleWorkerFlowStart = () => {
     setMode('worker-onboard');
@@ -103,8 +106,6 @@ const AppContent = () => {
             />
           </div>
         )}
-
-        
       </main>
     </div>
   );
@@ -125,24 +126,27 @@ const AppRoutes = () => {
   };
 
   return (
-    <Routes>
-      {/* First page: login / signup */}
-      <Route path="/" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
+    // 🔹 Wrap ALL routes with LanguageProvider
+    <LanguageProvider>
+      <Routes>
+        {/* First page: login / signup */}
+        <Route path="/" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
 
-      {/* Worker & Employer dashboards */}
-      <Route path="/worker-dashboard" element={<WorkerDashboard />} />
-      <Route path="/employer-dashboard" element={<EmployerDashboard />} />
-<Route path="/for-employers" element={<WorkersList />} />
-<Route path="/feedback" element={<Feedback />} />
-      {/* Main app flows (metrics + voice onboarding + profile + employers) */}
-      <Route path="/app" element={<AppContent />} />
-      <Route path="/worker-onboard" element={<AppContent />} />
-      <Route path="/worker-profile" element={<AppContent />} />
-     
+        {/* Worker & Employer dashboards */}
+        <Route path="/worker-dashboard" element={<WorkerDashboard />} />
+        <Route path="/employer-dashboard" element={<EmployerDashboard />} />
+        <Route path="/for-employers" element={<WorkersList />} />
+        <Route path="/feedback" element={<Feedback />} />
 
-      {/* Any unknown URL → go to auth */}
-      <Route path="*" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
-    </Routes>
+        {/* Main app flows (metrics + voice onboarding + profile + employers) */}
+        <Route path="/app" element={<AppContent />} />
+        <Route path="/worker-onboard" element={<AppContent />} />
+        <Route path="/worker-profile" element={<AppContent />} />
+
+        {/* Any unknown URL → go to auth */}
+        <Route path="*" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
+      </Routes>
+    </LanguageProvider>
   );
 };
 
