@@ -6,6 +6,7 @@ import bodyParser from 'body-parser';
 import path from 'path';
 import fs from 'fs';
 import { ObjectId } from 'mongodb';
+import bcrypt from 'bcryptjs';
 
 import generateWorkerPDF from './generateWorkerPDF.js';
 import {
@@ -15,11 +16,12 @@ import {
 } from './profileParser.js';
 import { connectDB } from './db.js';
 import i18nRouter from './routes/i18n.js'; // 🔹 NEW
+import { CITY_MAP } from './cityMap.js';
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
-app.use('/api', i18nRouter); //
+app.use('/api', i18nRouter);
 
 /* ------------------ FILE UPLOADS ------------------ */
 
@@ -38,6 +40,7 @@ if (!fs.existsSync(uploadsDir)) {
 const workers = [];            // in-memory fallback
 const sessions = new Map();    // voice onboarding sessions
 let workersCollection = null;  // Mongo collection if connected
+let usersCollection = null;
 
 function createSessionId() {
   return 'sess_' + Math.random().toString(36).slice(2);
@@ -76,21 +79,46 @@ app.post('/api/profile/answer', (req, res) => {
 });
 
 // 3️⃣ Complete profile
+function normalizeCity(raw) {
+  if (!raw) return '';
+  const cleaned = String(raw).toLowerCase().trim();
+  const base = cleaned.split(',')[0]; // before comma
+
+  return CITY_MAP[cleaned] || CITY_MAP[base] || cleaned;
+}
 function buildSearchKeyEn(draft) {
   const parts = [];
 
-  if (draft.name) parts.push(draft.name);
-  if (draft.city) parts.push(draft.city);
-  if (draft.cityArea) parts.push(draft.cityArea);
-  if (draft.state) parts.push(draft.state);
+  // 1) Name: keep as-is if already Latin, otherwise skip from searchKey_en
+  if (draft.name && /^[\x00-\x7F]+$/.test(draft.name)) {
+    parts.push(String(draft.name));
+  }
+
+  // 2) Normalized city/cityArea (Latin via CITY_MAP)
+  if (draft.cityArea) parts.push(normalizeCity(draft.cityArea));
+  if (draft.city) parts.push(normalizeCity(draft.city));
+
+  // 3) Normalized state if you have a map, otherwise keep if Latin
+  if (draft.state && /^[\x00-\x7F]+$/.test(draft.state)) {
+    parts.push(String(draft.state));
+  }
+
+  // 4) Skills: include only Latin tokens
   if (draft.skills) {
-    if (Array.isArray(draft.skills)) {
-      parts.push(draft.skills.join(' '));
-    } else {
-      parts.push(String(draft.skills));
+    const skillsArr = Array.isArray(draft.skills)
+      ? draft.skills
+      : String(draft.skills).split(/[,\s]+/);
+
+    const latinSkills = skillsArr.filter(s => /^[\x00-\x7F]+$/.test(s));
+    if (latinSkills.length) {
+      parts.push(latinSkills.join(' '));
     }
   }
-  if (draft.workType) parts.push(draft.workType);
+
+  if (draft.workType && /^[\x00-\x7F]+$/.test(draft.workType)) {
+    parts.push(String(draft.workType));
+  }
+
   if (draft.experienceYears) parts.push(String(draft.experienceYears));
   if (draft.expectedSalary) parts.push(String(draft.expectedSalary));
 
@@ -100,6 +128,7 @@ function buildSearchKeyEn(draft) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
 
 app.post('/api/profile/complete', async (req, res) => {
   const { sessionId, draft: directDraft } = req.body || {};
@@ -123,7 +152,7 @@ app.post('/api/profile/complete', async (req, res) => {
       emergencyContactAdded: !!draft.emergencyContact,
       emergencyContact: draft.emergencyContact
     },
-    // 🔹 NEW: English-normalized search key
+    // 🔹 English-normalized search key (with city normalization)
     searchKey_en: buildSearchKeyEn(draft)
   };
 
@@ -148,61 +177,12 @@ app.post('/api/profile/complete', async (req, res) => {
 
 // 🔥 THIS IS THE IMPORTANT PART 🔥
 app.get('/api/workers', async (req, res) => {
-  const { cityArea, skill, minExp, maxSalary } = req.query;
+  const { cityArea, skill, minExp, maxSalary, q } = req.query;
 
-  // -------- MEMORY MODE --------
-  if (!workersCollection) {
-    const filtered = workers.filter((w) => {
-
-      // City
-      if (cityArea && w.cityArea) {
-        if (!w.cityArea.toLowerCase().includes(cityArea.toLowerCase()))
-          return false;
-      }
-
-      // Skill
-      if (skill && w.skills?.length) {
-        const s = skill.toLowerCase();
-        if (!w.skills.some(sk => sk.toLowerCase().includes(s)))
-          return false;
-      }
-
-      // ✅ Min Experience (STRING → NUMBER)
-      // ✅ Min Experience (robust parsing)
-      if (minExp) {
-        let workerExp = 0;
-
-        if (typeof w.experienceYears === 'number') {
-          workerExp = w.experienceYears;
-        } else if (typeof w.experienceYears === 'string') {
-          // extract first number from string
-          const match = w.experienceYears.match(/\d+/);
-          workerExp = match ? Number(match[0]) : 0;
-        }
-
-        if (workerExp < Number(minExp)) {
-          return false;
-        }
-      }
-
-      // ✅ Max Salary (STRING → NUMBER)
-      if (maxSalary) {
-        const workerSalary = parseInt(w.expectedSalary); // "6000 / month" → 6000
-        if (isNaN(workerSalary) || workerSalary > Number(maxSalary))
-          return false;
-      }
-
-      return true;
-    });
-
-    return res.json({ workers: filtered });
-  }
-
-  console.log('WORKER OBJECT SAMPLE:', workers[0]);
-  // -------- MONGODB MODE --------
   const query = {};
 
-  if (cityArea) {
+  // Only apply the old city filter when there's NO q
+  if (!q && cityArea) {
     query.$or = [
       { city: { $regex: cityArea, $options: 'i' } },
       { cityArea: { $regex: cityArea, $options: 'i' } }
@@ -225,6 +205,18 @@ app.get('/api/workers', async (req, res) => {
     };
   }
 
+  // NEW: generic multi-field search for ANY city
+  if (q) {
+    const normalizedQ = String(q).toLowerCase().trim();
+    if (normalizedQ) {
+      query.$or = [
+        { searchKey_en: { $regex: normalizedQ, $options: 'i' } },
+        { cityArea:     { $regex: normalizedQ, $options: 'i' } },
+        { city:         { $regex: normalizedQ, $options: 'i' } }
+      ];
+    }
+  }
+
   try {
     const mongoWorkers = await workersCollection.find(query).toArray();
     res.json({ workers: mongoWorkers });
@@ -234,6 +226,63 @@ app.get('/api/workers', async (req, res) => {
   }
 });
 
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { name, phone, email, password, role, city } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: "Password required" });
+    }
+const existing = await usersCollection.findOne({ phone });
+
+if (existing) {
+  return res.status(400).json({ error: "Phone already registered" });
+}
+    // 👇 PASSWORD HASH YAHAN HOGA
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = {
+      name,
+      phone,
+      email,
+      city,
+      role,
+      password: hashedPassword,   // 👈 YEH LINE
+      createdAt: new Date()
+    };
+
+    await usersCollection.insertOne(user);
+
+    res.json({ message: "User created" });
+
+  } catch (err) {
+    res.status(500).json({ error: "Signup failed" });
+  }
+});
+app.post('/api/login', async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    // 🔴 PHONE se hi user find hoga (email hata diya)
+    const user = await usersCollection.findOne({ phone });
+
+    if (!user) {
+      return res.status(400).json({ error: "Phone number not registered" });
+    }
+
+    // password match
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ error: "Wrong password" });
+    }
+
+    res.json({ message: "Login success", user });
+
+  } catch (err) {
+    res.status(500).json({ error: "Login failed" });
+  }
+});
 /* ------------------ PDF ------------------ */
 
 app.post('/api/workers/:id/generate-pdf', async (req, res) => {
@@ -268,6 +317,7 @@ const PORT = process.env.PORT || 4000;
   try {
     const db = await connectDB();
     workersCollection = db.collection('workers');
+    usersCollection = db.collection('users');
     console.log('MongoDB connected');
   } catch (err) {
     console.error('MongoDB failed, using memory mode');

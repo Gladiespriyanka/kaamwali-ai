@@ -12,30 +12,38 @@ export default function WorkersList() {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
-    cityArea: '',
+    cityArea: 'kurnool',
     minExp: '',
     maxSalary: '',
     skill: ''
   });
 
   const fetchWorkers = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.cityArea) params.append('cityArea', filters.cityArea);
-      if (filters.minExp) params.append('minExp', filters.minExp);
-      if (filters.maxSalary) params.append('maxSalary', filters.maxSalary);
-      if (filters.skill) params.append('skill', filters.skill);
+  setLoading(true);
+  try {
+    const params = new URLSearchParams();
 
-      const res = await fetch(`${API_BASE}/api/workers?${params.toString()}`);
-      const data = await res.json();
-      setWorkers(data.workers || []);
-    } catch (err) {
-      console.error('Error fetching workers', err);
-    } finally {
-      setLoading(false);
+    if (filters.cityArea) {
+      params.append('cityArea', filters.cityArea); // existing city filter
+      params.append('q', filters.cityArea);        // NEW: free-text search on searchKey_en
     }
-  };
+
+    if (filters.minExp) params.append('minExp', filters.minExp);
+    if (filters.maxSalary) params.append('maxSalary', filters.maxSalary);
+    if (filters.skill) params.append('skill', filters.skill);
+
+    const url = `${API_BASE}/api/workers?${params.toString()}`;
+console.log('WorkersList fetch URL:', url);
+const res = await fetch(url);
+
+    const data = await res.json();
+    setWorkers(data.workers || []);
+  } catch (err) {
+    console.error('Error fetching workers', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchWorkers();

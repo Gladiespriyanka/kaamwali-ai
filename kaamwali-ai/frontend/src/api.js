@@ -21,9 +21,15 @@ export async function getMetrics() {
 }
 
 // Employer search: call GET /api/workers
+
 export async function searchWorkers(city, skill) {
   const params = new URLSearchParams();
-  if (city) params.append("cityArea", city);
+
+  if (city) {
+    params.append("cityArea", city); // existing filter
+    params.append("q", city);        // NEW: free-text search on searchKey_en
+  }
+
   if (skill) params.append("skill", skill);
 
   const res = await fetch(`${API_BASE}/api/workers?${params.toString()}`);

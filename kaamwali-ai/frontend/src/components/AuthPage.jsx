@@ -5,18 +5,80 @@ import { useLanguage } from '../contexts/LanguageContext';
 const AuthPage = ({ onAuthSuccess }) => {
   const [mode, setMode] = useState('login');
   const [userType, setUserType] = useState('worker');
-
+const [formData, setFormData] = useState({
+  name: "",
+  phone: "",
+  email: "",
+  city: "",
+  password: ""
+});
+const handleChange = (e) => {
+  setFormData({
+    ...formData,
+    [e.target.name]: e.target.value
+  });
+};
   const { language, setLanguage, messages, loadingTranslations } = useLanguage();
 
   const isWorker = userType === 'worker';
   const t = (messages && messages.auth) || {};
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (onAuthSuccess) {
-      onAuthSuccess(userType);
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  try {
+    if (mode === "signup") {
+      const res = await fetch("http://localhost:4000/api/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...formData,
+          role: userType
+        })
+      });
+
+      const data = await res.json();
+      console.log(data);
+
+      if (res.ok) {
+ alert("Account created successfully! Please log in.");
+  setMode("login");
+} else {
+  alert(data.error);
+}
+      
     }
-  };
+
+    if (mode === "login") {
+      const res = await fetch("http://localhost:4000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          phone: formData.phone,
+          
+          password: formData.password
+        })
+      });
+
+      const data = await res.json();
+      console.log(data);
+
+      if (data.user) {
+        alert("Login success!");
+        onAuthSuccess(userType);
+      } else {
+        alert(data.error);
+      }
+    }
+  } catch (err) {
+    console.log(err);
+    alert("Error connecting to server");
+  }
+};
 
   return (
     <>
@@ -382,8 +444,10 @@ const AuthPage = ({ onAuthSuccess }) => {
                       {t.emailPhone}
                     </label>
                     <input
+                    name="phone"
                       type="text"
                       className="kw-input"
+                      onChange={handleChange}
                       placeholder={t.emailPhonePlaceholder}
                       required
                     />
@@ -392,8 +456,10 @@ const AuthPage = ({ onAuthSuccess }) => {
                   <div className="kw-field">
                     <label className="kw-label">{t.password}</label>
                     <input
+                    name="password"
                       type="password"
                       className="kw-input"
+                      onChange={handleChange}
                       placeholder={t.passwordPlaceholder}
                       required
                     />
@@ -416,9 +482,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                       <div className="kw-field">
                         <label className="kw-label">{t.name}</label>
                         <input
+                        name="name"
                           type="text"
                           className="kw-input"
                           placeholder={t.fullNamePlaceholder}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -428,9 +496,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                           {t.phoneNumber}
                         </label>
                         <input
+                        name="phone"
                           type="tel"
                           className="kw-input"
                           placeholder={t.phonePlaceholder}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -440,8 +510,10 @@ const AuthPage = ({ onAuthSuccess }) => {
                           {t.cityArea}
                         </label>
                         <input
+                        name="city"
                           type="text"
                           className="kw-input"
+                          onChange={handleChange}
                           placeholder={t.cityAreaPlaceholder}
                           required
                         />
@@ -452,9 +524,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                           {t.password}
                         </label>
                         <input
+                        name="password"
                           type="password"
                           className="kw-input"
                           placeholder={t.passwordMin}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -471,9 +545,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                       <div className="kw-field">
                         <label className="kw-label">{t.name}</label>
                         <input
+                        name="name"
                           type="text"
                           className="kw-input"
                           placeholder={t.namePlaceholder}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -481,9 +557,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                       <div className="kw-field">
                         <label className="kw-label">{t.email}</label>
                         <input
+                        name="email"
                           type="email"
                           className="kw-input"
                           placeholder={t.emailPlaceholder}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -491,9 +569,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                       <div className="kw-field">
                         <label className="kw-label">{t.city}</label>
                         <input
+                        name="city"
                           type="text"
                           className="kw-input"
                           placeholder={t.cityPlaceholder}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -503,9 +583,11 @@ const AuthPage = ({ onAuthSuccess }) => {
                           {t.password}
                         </label>
                         <input
+                        name="password"
                           type="password"
                           className="kw-input"
                           placeholder={t.passwordMin}
+                          onChange={handleChange}
                           required
                         />
                       </div>
