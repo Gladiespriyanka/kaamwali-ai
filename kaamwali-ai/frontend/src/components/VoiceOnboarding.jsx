@@ -37,8 +37,15 @@ const isValidPhone10 = (value) => {
 
 const VoiceOnboarding = ({ onProfileReady }) => {
   const navigate = useNavigate();
-  const { listening, text, setText, startListening, stopListening } = useSpeechToText();
   const { language, messages } = useLanguage();
+
+  const {
+    listening,
+    text,
+    setText,
+    startListening,
+    stopListening,
+  } = useSpeechToText(language);
 
   const v = (messages && messages.voiceOnboarding) || {};
   const q = (messages && messages.questions) || {};

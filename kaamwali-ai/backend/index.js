@@ -19,7 +19,7 @@ import i18nRouter from './routes/i18n.js'; // 🔹 NEW
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
-app.use('/api', i18nRouter); // 
+app.use('/api', i18nRouter); //
 
 /* ------------------ FILE UPLOADS ------------------ */
 
@@ -76,6 +76,31 @@ app.post('/api/profile/answer', (req, res) => {
 });
 
 // 3️⃣ Complete profile
+function buildSearchKeyEn(draft) {
+  const parts = [];
+
+  if (draft.name) parts.push(draft.name);
+  if (draft.city) parts.push(draft.city);
+  if (draft.cityArea) parts.push(draft.cityArea);
+  if (draft.state) parts.push(draft.state);
+  if (draft.skills) {
+    if (Array.isArray(draft.skills)) {
+      parts.push(draft.skills.join(' '));
+    } else {
+      parts.push(String(draft.skills));
+    }
+  }
+  if (draft.workType) parts.push(draft.workType);
+  if (draft.experienceYears) parts.push(String(draft.experienceYears));
+  if (draft.expectedSalary) parts.push(String(draft.expectedSalary));
+
+  return parts
+    .join(' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 app.post('/api/profile/complete', async (req, res) => {
   const { sessionId, draft: directDraft } = req.body || {};
 
@@ -97,7 +122,9 @@ app.post('/api/profile/complete', async (req, res) => {
     safety: {
       emergencyContactAdded: !!draft.emergencyContact,
       emergencyContact: draft.emergencyContact
-    }
+    },
+    // 🔹 NEW: English-normalized search key
+    searchKey_en: buildSearchKeyEn(draft)
   };
 
   try {
@@ -124,53 +151,54 @@ app.get('/api/workers', async (req, res) => {
   const { cityArea, skill, minExp, maxSalary } = req.query;
 
   // -------- MEMORY MODE --------
- if (!workersCollection) {
-  const filtered = workers.filter((w) => {
+  if (!workersCollection) {
+    const filtered = workers.filter((w) => {
 
-    // City
-    if (cityArea && w.cityArea) {
-      if (!w.cityArea.toLowerCase().includes(cityArea.toLowerCase()))
-        return false;
-    }
+      // City
+      if (cityArea && w.cityArea) {
+        if (!w.cityArea.toLowerCase().includes(cityArea.toLowerCase()))
+          return false;
+      }
 
-    // Skill
-    if (skill && w.skills?.length) {
-      const s = skill.toLowerCase();
-      if (!w.skills.some(sk => sk.toLowerCase().includes(s)))
-        return false;
-    }
+      // Skill
+      if (skill && w.skills?.length) {
+        const s = skill.toLowerCase();
+        if (!w.skills.some(sk => sk.toLowerCase().includes(s)))
+          return false;
+      }
 
-    // ✅ Min Experience (STRING → NUMBER)
-    // ✅ Min Experience (robust parsing)
-if (minExp) {
-  let workerExp = 0;
+      // ✅ Min Experience (STRING → NUMBER)
+      // ✅ Min Experience (robust parsing)
+      if (minExp) {
+        let workerExp = 0;
 
-  if (typeof w.experienceYears === 'number') {
-    workerExp = w.experienceYears;
-  } else if (typeof w.experienceYears === 'string') {
-    // extract first number from string
-    const match = w.experienceYears.match(/\d+/);
-    workerExp = match ? Number(match[0]) : 0;
+        if (typeof w.experienceYears === 'number') {
+          workerExp = w.experienceYears;
+        } else if (typeof w.experienceYears === 'string') {
+          // extract first number from string
+          const match = w.experienceYears.match(/\d+/);
+          workerExp = match ? Number(match[0]) : 0;
+        }
+
+        if (workerExp < Number(minExp)) {
+          return false;
+        }
+      }
+
+      // ✅ Max Salary (STRING → NUMBER)
+      if (maxSalary) {
+        const workerSalary = parseInt(w.expectedSalary); // "6000 / month" → 6000
+        if (isNaN(workerSalary) || workerSalary > Number(maxSalary))
+          return false;
+      }
+
+      return true;
+    });
+
+    return res.json({ workers: filtered });
   }
 
-  if (workerExp < Number(minExp)) {
-    return false;
-  }
-}
-
-    // ✅ Max Salary (STRING → NUMBER)
-    if (maxSalary) {
-      const workerSalary = parseInt(w.expectedSalary); // "6000 / month" → 6000
-      if (isNaN(workerSalary) || workerSalary > Number(maxSalary))
-        return false;
-    }
-
-    return true;
-  });
-
-  return res.json({ workers: filtered });
-}
-console.log('WORKER OBJECT SAMPLE:', workers[0]);
+  console.log('WORKER OBJECT SAMPLE:', workers[0]);
   // -------- MONGODB MODE --------
   const query = {};
 
@@ -186,16 +214,17 @@ console.log('WORKER OBJECT SAMPLE:', workers[0]);
   }
 
   if (minExp !== undefined && minExp !== '') {
-  query.$expr = {
-    $gte: [{ $toInt: "$experienceYears" }, Number(minExp)]
-  };
-}
+    query.$expr = {
+      $gte: [{ $toInt: "$experienceYears" }, Number(minExp)]
+    };
+  }
 
-if (maxSalary !== undefined && maxSalary !== '') {
-  query.$expr = {
-    $lte: [{ $toInt: "$expectedSalary" }, Number(maxSalary)]
-  };
-}
+  if (maxSalary !== undefined && maxSalary !== '') {
+    query.$expr = {
+      $lte: [{ $toInt: "$expectedSalary" }, Number(maxSalary)]
+    };
+  }
+
   try {
     const mongoWorkers = await workersCollection.find(query).toArray();
     res.json({ workers: mongoWorkers });

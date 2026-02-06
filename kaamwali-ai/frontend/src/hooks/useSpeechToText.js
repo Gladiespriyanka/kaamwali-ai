@@ -1,10 +1,29 @@
 // hooks/useSpeechToText.js
 import { useRef, useState } from 'react';
 
-export const useSpeechToText = () => {
+// language: 'en' | 'hi' | 'te' | 'bn' | 'mr' | 'kn'
+export const useSpeechToText = (language = 'en') => {
   const [listening, setListening] = useState(false);
   const [text, setText] = useState('');
   const recognitionRef = useRef(null);
+
+  const mapLangToLocale = (lang) => {
+    switch (lang) {
+      case 'hi':
+        return 'hi-IN';
+      case 'te':
+        return 'te-IN';
+      case 'bn':
+        return 'bn-IN';
+      case 'mr':
+        return 'mr-IN';
+      case 'kn':
+        return 'kn-IN';
+      case 'en':
+      default:
+        return 'en-IN';
+    }
+  };
 
   const startListening = () => {
     const SpeechRecognition =
@@ -15,7 +34,9 @@ export const useSpeechToText = () => {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'hi-IN';
+
+    // set STT language based on app language
+    recognition.lang = mapLangToLocale(language);
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
