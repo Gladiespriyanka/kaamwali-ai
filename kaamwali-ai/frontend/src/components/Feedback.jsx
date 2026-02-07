@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Feedback() {
@@ -14,27 +14,125 @@ export default function Feedback() {
   });
 
   const [improvementSuggestions, setImprovementSuggestions] = useState("");
-
   const [employerName, setEmployerName] = useState("");
-  const [housekeeperName, setHousekeeperName] = useState("");
-  const [housekeeperRole, setHousekeeperRole] = useState("");
   const [date, setDate] = useState("");
+  const [emergencyContact, setEmergencyContact] = useState("");
+  
+  // 🔥 Changed from housekeeperRole to housekeeperName
+  const [housekeeperName, setHousekeeperName] = useState("");
+  const [workerRole, setWorkerRole] = useState("");
 
   const handleRatingChange = (question, value) => {
     setRatings((prev) => ({ ...prev, [question]: value }));
   };
 
-  const handleSubmit = (e) => {
+  // 🔥 Auto-fill worker name when phone is entered
+  useEffect(() => {
+    if (!emergencyContact || emergencyContact.length < 10) {
+      setHousekeeperName("");
+      setWorkerRole("");
+      return;
+    }
+
+    const fetchWorkerByPhone = async () => {
+      try {
+        const res = await fetch(`http://localhost:4000/api/workers/by-phone/${emergencyContact}`);
+        
+        if (!res.ok) {
+          setHousekeeperName("");
+          setWorkerRole("");
+          return;
+        }
+
+        const data = await res.json();
+        setHousekeeperName(data.name || "");
+        setWorkerRole(data.role || "");
+      } catch (err) {
+        console.error("Error fetching worker:", err);
+        setHousekeeperName("");
+        setWorkerRole("");
+      }
+    };
+
+    // Debounce the API call
+    const timeoutId = setTimeout(fetchWorkerByPhone, 500);
+    return () => clearTimeout(timeoutId);
+  }, [emergencyContact]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log({
+
+    // Validate required fields
+    if (!employerName) {
+      alert("Please enter your name.");
+      return;
+    }
+
+    if (!emergencyContact) {
+      alert("Please enter worker phone number.");
+      return;
+    }
+
+    if (!housekeeperName) {
+      alert("Worker not found with this phone number. Please verify.");
+      return;
+    }
+
+    // Check if at least some ratings are filled
+    const hasRatings = Object.values(ratings).some(val => val !== "" && val !== 0);
+    if (!hasRatings) {
+      alert("Please provide at least one rating.");
+      return;
+    }
+
+    const payload = {
       employerName,
-      housekeeperName,
-      housekeeperRole,
-      date,
+      date: date || new Date().toISOString().split('T')[0],
+      emergencyContact,
       ratings,
       improvementSuggestions,
-    });
-    alert("Feedback submitted successfully!");
+    };
+
+    console.log("Submitting feedback:", payload);
+
+    try {
+      const res = await fetch("http://localhost:4000/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Something went wrong!");
+        return;
+      }
+
+      alert(`Feedback submitted successfully for ${data.workerName}!`);
+      
+      // Reset form
+      setRatings({
+        workQuality: 0,
+        reliability: "",
+        attentionToDetail: "",
+        professionalism: "",
+        skillCompetence: "",
+        overallSatisfaction: "",
+      });
+      setImprovementSuggestions("");
+      setEmployerName("");
+      setDate("");
+      setEmergencyContact("");
+      setHousekeeperName("");
+      setWorkerRole("");
+
+    } catch (err) {
+      console.error("Submit error:", err);
+      alert("Server error while submitting feedback. Please try again.");
+    }
   };
 
   const styles = {
@@ -76,6 +174,15 @@ export default function Feedback() {
       borderRadius: "6px",
       border: "1px solid #ccc",
       fontSize: "13px",
+    },
+    inputReadonly: {
+      marginTop: "6px",
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      fontSize: "13px",
+      backgroundColor: "#f9f9f9",
+      color: "#666",
     },
     question: {
       marginBottom: "25px",
@@ -206,30 +313,58 @@ export default function Feedback() {
             </div>
 
             <div style={styles.inputBox}>
-              Housekeeper Name
+              Housekeeper Phone Number
               <input
                 style={styles.input}
-                value={housekeeperName}
-                onChange={(e) => setHousekeeperName(e.target.value)}
-                placeholder="Enter housekeeper name"
+                value={emergencyContact}
+                onChange={(e) => setEmergencyContact(e.target.value)}
+                placeholder="Enter phone number"
               />
             </div>
 
+            {/* 🔥 Changed to show worker name */}
             <div style={styles.inputBox}>
-              Housekeeper Role
+              Housekeeper Name
               <input
-                style={styles.input}
-                value={housekeeperRole}
-                onChange={(e) => setHousekeeperRole(e.target.value)}
-                placeholder="Cook / Cleaner / Helper"
+                style={styles.inputReadonly}
+                value={housekeeperName}
+                readOnly
+                placeholder="Auto-filled from phone"
               />
             </div>
           </div>
 
+          {/* 🔥 Optional: Show role below name */}
+          {workerRole && (
+            <div style={{ marginBottom: "20px", fontSize: "13px", color: "#666" }}>
+              Role: <strong>{workerRole}</strong>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             <div style={styles.question}>
               <p style={styles.questionText}>
-                How would you rate the overall quality of the housekeeper’s work?
+                How professional was the housekeeper while working?
+              </p>
+              <OptionButtons
+                question="professionalism"
+                options={["Excellent", "Good", "Fair", "Poor"]}
+              />
+            </div>
+
+            <div style={styles.question}>
+              <p style={styles.questionText}>
+                How would you rate the housekeeper's skills and competence?
+              </p>
+              <OptionButtons
+                question="skillCompetence"
+                options={["Excellent", "Good", "Fair", "Poor"]}
+              />
+            </div>
+
+            <div style={styles.question}>
+              <p style={styles.questionText}>
+                How would you rate the overall quality of the housekeeper's work?
               </p>
               <div style={styles.options}>
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -266,9 +401,7 @@ export default function Feedback() {
             </div>
 
             <div style={styles.question}>
-              <p style={styles.questionText}>
-                How satisfied are you overall?
-              </p>
+              <p style={styles.questionText}>How satisfied are you overall?</p>
               <OptionButtons
                 question="overallSatisfaction"
                 options={[
@@ -281,11 +414,12 @@ export default function Feedback() {
             </div>
 
             <div style={styles.question}>
-              <p style={styles.questionText}>Suggestions</p>
+              <p style={styles.questionText}>Suggestions for Improvement</p>
               <textarea
                 style={styles.textarea}
                 value={improvementSuggestions}
                 onChange={(e) => setImprovementSuggestions(e.target.value)}
+                placeholder="Optional: Share any suggestions or comments..."
               />
             </div>
 
