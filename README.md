@@ -1,7 +1,6 @@
 # KaamWali.AI
 
 Financial Inclusion for Women – AI Solutions for Economic Empowerment & Financial Literacy
-Presented by FEMGINEERS, Indira Gandhi Delhi Technical University for Women
 
 # Overview
 
