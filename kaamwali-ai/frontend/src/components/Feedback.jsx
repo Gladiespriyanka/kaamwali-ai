@@ -7,9 +7,9 @@ export default function Feedback() {
   const [ratings, setRatings] = useState({
     workQuality: 0,
     reliability: "",
-    attentionToDetail: "",
-    professionalism: "",
-    skillCompetence: "",
+    attentionToDetail: 0,
+    professionalism: 0,
+    skillCompetence: 0,
     overallSatisfaction: "",
   });
 
@@ -117,9 +117,9 @@ export default function Feedback() {
       setRatings({
         workQuality: 0,
         reliability: "",
-        attentionToDetail: "",
-        professionalism: "",
-        skillCompetence: "",
+        attentionToDetail: 0,
+        professionalism: 0,
+        skillCompetence: 0,
         overallSatisfaction: "",
       });
       setImprovementSuggestions("");
@@ -138,29 +138,44 @@ export default function Feedback() {
   const styles = {
     page: {
       minHeight: "100vh",
-      backgroundColor: "#f4f4f4",
-      padding: "30px",
-      fontFamily: "Arial, sans-serif",
+      backgroundColor: "#E4EEE9",
+      backgroundImage: "linear-gradient(180deg, #E4EEE9 0%, #CEDFD6 52%, #F9FAFB 100%)",
+      padding: "40px 20px 80px",
+      fontFamily: "Inter, Arial, sans-serif",
+      color: "#102a43",
+    },
+    hero: {
+      maxWidth: "1150px",
+      margin: "0 auto",
+      padding: "34px 28px",
+      borderRadius: "14px",
+      background: "linear-gradient(135deg, #2E7D5E 0%, #A7D4BC 100%)",
+      color: "#ffffff",
+      boxShadow: "0 12px 35px rgba(46, 125, 94, 0.28)",
+      textAlign: "center",
+      marginBottom: "-24px",
     },
     card: {
-      maxWidth: "900px",
-      margin: "0 auto",
+      maxWidth: "920px",
+      margin: "-20px auto 0",
       backgroundColor: "#fff",
-      borderRadius: "10px",
-      boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
-      padding: "35px 45px",
+      borderRadius: "14px",
+      border: "1px solid rgba(167, 212, 188, 0.5)",
+      boxShadow: "0 10px 24px rgba(46, 125, 94, 0.14)",
+      padding: "38px 34px",
     },
     sectionTitle: {
-      fontSize: "18px",
-      fontWeight: "bold",
-      marginBottom: "20px",
-      color: "#111827",
+      fontSize: "22px",
+      fontWeight: "700",
+      marginBottom: "22px",
+      color: "#1b4d3f",
     },
     grid: {
       display: "grid",
-      gridTemplateColumns: "repeat(2, 1fr)",
-      gap: "20px",
-      marginBottom: "30px",
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+      gridAutoRows: "auto",
+      gap: "18px",
+      marginBottom: "24px",
     },
     inputBox: {
       display: "flex",
@@ -169,29 +184,55 @@ export default function Feedback() {
       color: "#333",
     },
     input: {
-      marginTop: "6px",
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      fontSize: "13px",
+      marginTop: "8px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #dbeafe",
+      fontSize: "14px",
+      backgroundColor: "#fff",
+      color: "#0f172a",
+      boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
     },
     inputReadonly: {
-      marginTop: "6px",
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      fontSize: "13px",
-      backgroundColor: "#f9f9f9",
-      color: "#666",
+      marginTop: "8px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #dbeafe",
+      fontSize: "14px",
+      backgroundColor: "#f8fafc",
+      color: "#64748b",
+      boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.04)",
+    },
+    progressBar: {
+      height: 4,
+      borderRadius: 3,
+      backgroundColor: "#e5f1ea",
+      overflow: "hidden",
+      marginBottom: 22,
+    },
+    progressInner: {
+      height: "100%",
+      width: "50%",
+      backgroundColor: "#2E7D5E",
     },
     question: {
-      marginBottom: "25px",
+      marginBottom: "23px",
     },
     questionText: {
       fontSize: "14px",
       marginBottom: "10px",
       color: "#333",
     },
+    starButton: (active) => ({
+      cursor: "pointer",
+      fontSize: "30px",
+      color: active ? "#2E7D5E" : "#cbd5e1",
+      marginRight: "8px",
+      border: "none",
+      background: "none",
+      padding: 0,
+      lineHeight: 1,
+    }),
     options: {
       display: "flex",
       gap: "10px",
@@ -218,11 +259,13 @@ export default function Feedback() {
     }),
     textarea: {
       width: "100%",
-      height: "90px",
-      padding: "10px",
-      fontSize: "13px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
+      minHeight: "130px",
+      padding: "12px",
+      fontSize: "14px",
+      borderRadius: "8px",
+      border: "1px solid #cbd5e1",
+      resize: "vertical",
+      lineHeight: "1.4",
     },
     submit: {
       marginTop: "30px",
@@ -239,6 +282,22 @@ export default function Feedback() {
       marginRight: "auto",
     },
   };
+
+  const StarRating = ({ question }) => (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          style={styles.starButton(ratings[question] >= n)}
+          onClick={() => handleRatingChange(question, n)}
+          aria-label={`${question} star ${n}`}
+        >
+          {ratings[question] >= n ? '★' : '☆'}
+        </button>
+      ))}
+    </div>
+  );
 
   const OptionButtons = ({ question, options }) => (
     <div style={styles.options}>
@@ -258,38 +317,90 @@ export default function Feedback() {
   return (
     <>
       {/* ===== HEADER ===== */}
-      <header className="kw-nav">
-        <div
-          className="kw-logo"
-          style={{ cursor: "pointer" }}
-          onClick={() => navigate("/employer-dashboard")}
-        >
-          KaamWali.AI
+      <header style={{
+        background: '#ffffff',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.9)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}>
+        <div style={{
+          maxWidth: 1140,
+          margin: '0 auto',
+          padding: '0 24px',
+          height: 62,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div onClick={() => navigate('/')} style={{
+            cursor: 'pointer',
+            fontWeight: 800,
+            fontSize: 18,
+            color: '#0d2e59',
+            letterSpacing: '0.02em',
+          }}>
+            KaamWali<span style={{ color: '#2E7D5E' }}>.AI</span>
+          </div>
+
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/employer-dashboard')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2E7D5E',
+                fontSize: 14,
+                cursor: 'pointer',
+                padding: '8px 12px',
+                borderRadius: 8,
+              }}
+            >
+              For Employers
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/feedback')}
+              style={{
+                background: '#2E7D5E',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 700,
+                padding: '8px 14px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                boxShadow: '0 6px 14px rgba(46, 125, 94, 0.35)',
+              }}
+            >
+              Feedback
+            </button>
+          </nav>
         </div>
-
-        <nav className="kw-nav-links">
-          <button
-            type="button"
-            className="kw-nav-link"
-            onClick={() => navigate("/employer-dashboard")}
-          >
-            For Employers
-          </button>
-
-          <button
-            type="button"
-            className="kw-nav-cta"
-            onClick={() => navigate("/feedback")}
-          >
-            Feedback
-          </button>
-        </nav>
       </header>
 
       {/* ===== PAGE ===== */}
       <div style={styles.page}>
+        <div style={styles.hero}>
+          <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700 }}>
+            Share feedback and help the community
+          </h2>
+          <p style={{ margin: "10px 0 0", fontSize: "15px", opacity: 0.95 }}>
+            Tell us how your worker performed, so we can improve trust and matching.
+          </p>
+        </div>
+
         <div style={styles.card}>
-          <div style={styles.sectionTitle}>Housekeeper Feedback</div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#102a43' }}>Housekeeper Feedback</div>
+            <div style={{ fontSize: 14, color: '#52606d', marginTop: 6 }}>
+              Your review helps workers grow and employers choose wisely.
+            </div>
+          </div>
+          <div style={styles.progressBar}>
+            <div style={styles.progressInner} />
+          </div>
 
           <div style={styles.grid}>
             <div style={styles.inputBox}>
@@ -298,7 +409,17 @@ export default function Feedback() {
                 style={styles.input}
                 value={employerName}
                 onChange={(e) => setEmployerName(e.target.value)}
-                placeholder="Enter your name"
+                placeholder="Your name"
+              />
+            </div>
+
+            <div style={styles.inputBox}>
+              Housekeeper Phone
+              <input
+                style={styles.input}
+                value={emergencyContact}
+                onChange={(e) => setEmergencyContact(e.target.value)}
+                placeholder="10-digit number"
               />
             </div>
 
@@ -312,17 +433,6 @@ export default function Feedback() {
               />
             </div>
 
-            <div style={styles.inputBox}>
-              Housekeeper Phone Number
-              <input
-                style={styles.input}
-                value={emergencyContact}
-                onChange={(e) => setEmergencyContact(e.target.value)}
-                placeholder="Enter phone number"
-              />
-            </div>
-
-            {/* 🔥 Changed to show worker name */}
             <div style={styles.inputBox}>
               Housekeeper Name
               <input
@@ -344,40 +454,23 @@ export default function Feedback() {
           <form onSubmit={handleSubmit}>
             <div style={styles.question}>
               <p style={styles.questionText}>
-                How professional was the housekeeper while working?
+                Professionalism while working
               </p>
-              <OptionButtons
-                question="professionalism"
-                options={["Excellent", "Good", "Fair", "Poor"]}
-              />
+              <StarRating question="professionalism" />
             </div>
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                How would you rate the housekeeper's skills and competence?
+                Skills and competence
               </p>
-              <OptionButtons
-                question="skillCompetence"
-                options={["Excellent", "Good", "Fair", "Poor"]}
-              />
+              <StarRating question="skillCompetence" />
             </div>
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                How would you rate the overall quality of the housekeeper's work?
+                Overall quality of work
               </p>
-              <div style={styles.options}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    style={styles.numberButton(ratings.workQuality === n)}
-                    onClick={() => handleRatingChange("workQuality", n)}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <StarRating question="workQuality" />
             </div>
 
             <div style={styles.question}>
@@ -392,16 +485,13 @@ export default function Feedback() {
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                How thorough is the housekeeper in cleaning and organizing?
+                Thoroughness in cleaning & organizing
               </p>
-              <OptionButtons
-                question="attentionToDetail"
-                options={["Excellent", "Good", "Fair", "Poor"]}
-              />
+              <StarRating question="attentionToDetail" />
             </div>
 
             <div style={styles.question}>
-              <p style={styles.questionText}>How satisfied are you overall?</p>
+              <p style={styles.questionText}>Overall satisfaction</p>
               <OptionButtons
                 question="overallSatisfaction"
                 options={[
