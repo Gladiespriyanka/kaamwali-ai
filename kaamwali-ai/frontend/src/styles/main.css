@@ -365,7 +365,7 @@ select {
     0 10px 22px rgba(0, 0, 0, 0.35);
   transform: translateY(0);
   transition: transform 0.15s ease-out, box-shadow 0.15s ease-out,
-    background 0.15s.ease-out;
+    background 0.15s ease-out;
 }
 
 .kw-nav-cta:hover {
