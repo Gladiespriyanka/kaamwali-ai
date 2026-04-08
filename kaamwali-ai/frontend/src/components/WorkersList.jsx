@@ -1,3 +1,4 @@
+// frontend/WorkersList.jsx (or similar)
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,7 +17,8 @@ export default function WorkersList() {
     cityArea: 'kurnool',
     minExp: '',
     maxSalary: '',
-    skill: ''
+    skill: '',
+    sortByTrust: 'yes',
   });
 
   const theme = {
@@ -30,31 +32,35 @@ export default function WorkersList() {
   };
 
   const fetchWorkers = async () => {
-  setLoading(true);
-  try {
-    const params = new URLSearchParams();
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
 
-    if (filters.cityArea) {
-      params.append('cityArea', filters.cityArea); // existing city filter
-      params.append('q', filters.cityArea);        // NEW: free-text search on searchKey_en
+      if (filters.cityArea) {
+        params.append('cityArea', filters.cityArea); // existing city filter
+        params.append('q', filters.cityArea);        // free-text search on searchKey_en
+      }
+
+      if (filters.minExp) params.append('minExp', filters.minExp);
+      if (filters.maxSalary) params.append('maxSalary', filters.maxSalary);
+      if (filters.skill) params.append('skill', filters.skill);
+
+      if (filters.sortByTrust === 'yes') {
+        params.append('sortBy', 'trust');
+      }
+
+      const url = `${API_BASE}/api/workers?${params.toString()}`;
+      console.log('WorkersList fetch URL:', url);
+      const res = await fetch(url);
+
+      const data = await res.json();
+      setWorkers(data.workers || []);
+    } catch (err) {
+      console.error('Error fetching workers', err);
+    } finally {
+      setLoading(false);
     }
-
-    if (filters.minExp) params.append('minExp', filters.minExp);
-    if (filters.maxSalary) params.append('maxSalary', filters.maxSalary);
-    if (filters.skill) params.append('skill', filters.skill);
-
-    const url = `${API_BASE}/api/workers?${params.toString()}`;
-console.log('WorkersList fetch URL:', url);
-const res = await fetch(url);
-
-    const data = await res.json();
-    setWorkers(data.workers || []);
-  } catch (err) {
-    console.error('Error fetching workers', err);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchWorkers();
@@ -283,6 +289,42 @@ const res = await fetch(url);
                 />
               </div>
 
+              {/* Sort by Trust */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: theme.text,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  Sort by Trust
+                </label>
+                <select
+                  name="sortByTrust"
+                  value={filters.sortByTrust}
+                  onChange={handleChange}
+                  style={{
+                    height: 44,
+                    borderRadius: 12,
+                    border: `1px solid ${theme.border}`,
+                    padding: '0 12px',
+                    fontSize: 14,
+                    color: theme.text,
+                    outline: 'none',
+                    background: '#fff',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = theme.border)}
+                >
+                  <option value="yes">Highest trust first</option>
+                  <option value="no">Default order</option>
+                </select>
+              </div>
+
               <button
                 type="submit"
                 style={{
@@ -311,7 +353,7 @@ const res = await fetch(url);
                 key={w._id}
                 style={{
                   background: '#fff', borderRadius: 16, border: `1px solid ${theme.border}`,
-                  boxShadow: '0 8px 18px rgba(17, 33, 20, 0.08)', 
+                  boxShadow: '0 8px 18px rgba(17, 33, 20, 0.08)',
                   minHeight: 130, position: 'relative',
                   overflow: 'hidden',
                 }}
@@ -324,7 +366,7 @@ const res = await fetch(url);
                 >
                   <div className={`flip-inner ${flipped[w._id] ? 'flipped' : ''}`}>
                     {/* ===== FRONT SIDE ===== */}
-                    <div 
+                    <div
                       className="flip-front"
                       style={{
                         padding: 14,
@@ -344,7 +386,7 @@ const res = await fetch(url);
                         </p>
                       </div>
 
-                      <div style={{ 
+                      <div style={{
                         marginTop: 8,
                         padding: '6px 10px',
                         background: '#F0F9F6',
@@ -360,7 +402,7 @@ const res = await fetch(url);
                     </div>
 
                     {/* ===== BACK SIDE ===== */}
-                    <div 
+                    <div
                       className="flip-back"
                       style={{
                         padding: 14,
@@ -380,14 +422,66 @@ const res = await fetch(url);
                           <strong>Expected Salary:</strong> ₹{w.expectedSalary ? w.expectedSalary : 'NA'}
                         </p>
 
-                        <span style={{ 
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          padding: '4px 10px', borderRadius: 999, background: '#E6F4EE',
-                          color: theme.primary, fontSize: 12, fontWeight: 700,
-                          marginTop: 0,
-                        }}>
-                          ⭐ {w.trustScore != null ? w.trustScore : 'NA'}
-                        </span>
+                        {/* Trust, cluster, rehire, reviews */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '4px 10px',
+                              borderRadius: 999,
+                              background: '#E6F4EE',
+                              color: theme.primary,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              width: 'fit-content',
+                            }}
+                            title={
+                              w.trustMeta
+                                ? `Rating: ${w.trustMeta.avgRating?.toFixed?.(1) || '--'} ★ · ` +
+                                  `Sentiment: ${(w.trustMeta.sentimentScore01 * 100).toFixed(0)}% · ` +
+                                  `Consistency: ${(w.trustMeta.consistency * 100).toFixed(0)}% · ` +
+                                  `Activity: ${(w.trustMeta.activity * 100).toFixed(0)}%`
+                                : 'Trust Score based on ratings, sentiment, consistency and recent activity'
+                            }
+                          >
+                            ⭐ Trust: {w.trustScore != null ? Math.round(w.trustScore) : 'NA'}/100
+                          </div>
+
+                          {w.trustMeta && (
+                            <div style={{ fontSize: 11, color: theme.secondary }}>
+                              Segment{' '}
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color:
+                                    w.trustMeta.cluster === 'high'
+                                      ? '#15803D'
+                                      : w.trustMeta.cluster === 'risky'
+                                      ? '#B91C1C'
+                                      : theme.secondary,
+                                }}
+                              >
+                                {w.trustMeta.cluster === 'high'
+                                  ? 'Highly trusted'
+                                  : w.trustMeta.cluster === 'risky'
+                                  ? 'Risky'
+                                  : 'Average'}
+                              </span>
+                              {typeof w.trustMeta.rehireProbability === 'number' && (
+                                <> · Rehire {(w.trustMeta.rehireProbability * 100).toFixed(0)}%</>
+                              )}
+                            </div>
+                          )}
+
+                          {w.trustMeta && (
+                            <div style={{ fontSize: 11, color: theme.secondary }}>
+                              {w.trustMeta.reviewsCount || 0} review
+                              {(w.trustMeta.reviewsCount || 0) === 1 ? '' : 's'}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <button

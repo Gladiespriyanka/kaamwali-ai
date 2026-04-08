@@ -15,6 +15,9 @@ import {
 import { connectDB } from './db.js';
 import i18nRouter from './routes/i18n.js';
 import { CITY_MAP } from './cityMap.js';
+import Sentiment from 'sentiment';  // [web:1]
+
+const sentiment = new Sentiment();
 
 const app = express();
 app.use(cors());
@@ -39,6 +42,175 @@ const workers = [];
 const sessions = new Map();
 let workersCollection = null;
 let usersCollection = null;
+
+// ------------------ TRUST SCORE HELPERS ------------------
+
+// Map text satisfaction -> numeric rating (1-5)
+function mapSatisfactionToRating(text) {
+  if (!text) return 3;
+  const t = String(text).toLowerCase().trim();
+
+  if (['excellent', 'very good', 'outstanding'].includes(t)) return 5;
+  if (['good', 'nice'].includes(t)) return 4;
+  if (['average', 'ok', 'okay', 'fine'].includes(t)) return 3;
+  if (['poor', 'bad'].includes(t)) return 2;
+  if (['very poor', 'terrible', 'worst'].includes(t)) return 1;
+
+  return 3;
+}
+
+// Compute sentiment from free-text review (improvementSuggestions)
+function computeSentimentScore(text) {
+  if (!text || !text.trim()) return 0.5; // neutral if empty
+  const result = sentiment.analyze(text); // [web:1]
+  const maxPossible = 10;
+  let normalized = result.score / maxPossible;
+  if (normalized > 1) normalized = 1;
+  if (normalized < -1) normalized = -1;
+  return (normalized + 1) / 2; // -1..1 -> 0..1
+}
+
+// Recompute Trust Score for a single worker document
+async function recomputeWorkerTrust(workerId) {
+  if (!workersCollection) return;
+
+  const worker = await workersCollection.findOne({ _id: workerId });
+  if (!worker) return;
+
+  const feedbacks = worker.feedbacks || [];
+  const n = feedbacks.length;
+
+  if (n === 0) {
+    await workersCollection.updateOne(
+      { _id: workerId },
+      {
+        $set: {
+          trustScore: 0,
+          trustMeta: {
+            avgRating: 0,
+            sentimentScore01: 0.5,
+            consistency: 0,
+            experience: 0,
+            activity: 0,
+            reviewsCount: 0,
+            rehireProbability: 0,
+            cluster: 'average',
+          },
+        },
+      }
+    );
+    return;
+  }
+
+  // 1) avgRating 1-5
+  const ratings = feedbacks.map((f) => f.numericRating || 3);
+  const sumRatings = ratings.reduce((s, r) => s + r, 0);
+  const avgRating = sumRatings / n;
+
+  // 2) sentiment average (each feedback has sentimentScore01 0..1)
+  const sentiments = feedbacks.map((f) =>
+    typeof f.sentimentScore01 === 'number' ? f.sentimentScore01 : 0.5
+  );
+  const avgSentiment =
+    sentiments.reduce((s, v) => s + v, 0) / sentiments.length;
+
+  // 3) consistency from variance of ratings
+  const mean = avgRating;
+  const variance =
+    ratings.reduce((s, r) => s + Math.pow(r - mean, 2), 0) / n;
+  const maxVar = 2; // heuristic cap
+  let consistency = 1 - variance / maxVar;
+  if (consistency < 0) consistency = 0;
+  if (consistency > 1) consistency = 1;
+
+  // 4) experience from worker.experienceYears (0-10 years -> 0..1)
+  const yearsExp = Number(worker.experienceYears || 0);
+  const experience = Math.min(Math.max(yearsExp, 0), 10) / 10;
+
+  // 5) activity from recency (exponential decay with half-life) [web:30]
+  const now = Date.now();
+  const halfLifeDays = 90;
+  const k =
+    Math.log(2) / (halfLifeDays * 24 * 60 * 60 * 1000);
+  let activitySum = 0;
+  feedbacks.forEach((f) => {
+    const ts = f.createdAt ? new Date(f.createdAt).getTime() : now;
+    const ageMs = now - ts;
+    const weight = Math.exp(-k * ageMs);
+    activitySum += weight;
+  });
+  const activity = Math.min(activitySum / 10, 1); // normalized 0..1
+
+  // Final trust score 0-100
+  const trustScoreRaw =
+    avgRating * 20 +           // 1-5 -> 0-100
+    avgSentiment * 30 +        // 0-1 -> 0-30
+    consistency * 20 +         // 0-1 -> 0-20
+    experience * 10 +          // 0-1 -> 0-10
+    activity * 20;             // 0-1 -> 0-20
+
+  const trustScore = Math.max(0, Math.min(trustScoreRaw, 100));
+
+  // ---- rehire + cluster ----
+  const baseMeta = {
+    avgRating,
+    sentimentScore01: avgSentiment,
+    consistency,
+    experience,
+    activity,
+    reviewsCount: n,
+  };
+
+  const rehireProbability = computeRehireProbability(baseMeta);
+
+  let trustCluster = 'average';
+  if (trustScore >= 80 && rehireProbability >= 0.7) trustCluster = 'high';
+  else if (trustScore <= 50 && rehireProbability <= 0.4) trustCluster = 'risky';
+
+  const finalMeta = {
+    ...baseMeta,
+    rehireProbability,
+    cluster: trustCluster,
+  };
+
+  await workersCollection.updateOne(
+    { _id: workerId },
+    {
+      $set: {
+        trustScore,
+        trustMeta: finalMeta,
+      },
+    }
+  );
+}
+
+// logistic + rehiring helpers
+function logistic(x) {
+  return 1 / (1 + Math.exp(-x)); // [web:30]
+}
+
+function computeRehireProbability(meta) {
+  const {
+    avgRating,
+    sentimentScore01,
+    consistency,
+    experience,
+    activity,
+  } = meta;
+
+  const r = (avgRating - 1) / 4;      // 1–5 -> 0–1
+
+  // Hand-crafted logistic regression weights
+  const z =
+    2.0 * r +
+    1.5 * sentimentScore01 +
+    1.0 * consistency +
+    0.8 * experience +
+    1.2 * activity -
+    2.0;
+
+  return logistic(z);                 // 0–1
+}
 
 function createSessionId() {
   return 'sess_' + Math.random().toString(36).slice(2);
@@ -139,15 +311,25 @@ app.post('/api/profile/complete', async (req, res) => {
 
   const worker = {
     ...draft,
-    trustScore,
+    trustScore,                         // initial score from profile
+    trustMeta: {                        // will be updated by feedback
+      avgRating: 0,
+      sentimentScore01: 0.5,
+      consistency: 0,
+      experience: Number(draft.experienceYears || 0),
+      activity: 0,
+      reviewsCount: 0,
+      rehireProbability: 0,
+      cluster: 'average',
+    },
     createdAt: new Date().toISOString(),
     safety: {
       emergencyContactAdded: !!draft.emergencyContact,
       emergencyContact: draft.emergencyContact
     },
     searchKey_en: buildSearchKeyEn(draft),
-    feedbacks: [],           // 🔥 Initialize feedbacks array
-    feedbackCount: 0         // 🔥 Track total feedbacks
+    feedbacks: [],                      // feedback array
+    feedbackCount: 0                    // total feedbacks
   };
 
   try {
@@ -209,7 +391,10 @@ app.get('/api/workers', async (req, res) => {
   }
 
   try {
-    const mongoWorkers = await workersCollection.find(query).toArray();
+    const mongoWorkers = await workersCollection
+      .find(query)
+      .sort({ trustScore: -1 })   // highest trust first [web:9]
+      .toArray();
     res.json({ workers: mongoWorkers });
   } catch (err) {
     console.error(err);
@@ -279,51 +464,80 @@ app.post('/api/login', async (req, res) => {
 
 /* ------------------ FEEDBACK SYSTEM ------------------ */
 
-// 🔥 FIXED: Proper feedback submission using emergencyContact
+// Advanced feedback with Trust Score recompute
 app.post("/api/feedback", async (req, res) => {
   try {
-    const { employerName, date, emergencyContact, ratings, improvementSuggestions } = req.body;
+    const {
+      employerName,
+      date,
+      emergencyContact,
+      ratings,
+      improvementSuggestions
+    } = req.body;
 
     if (!employerName || !emergencyContact || !ratings) {
-      return res.status(400).json({ message: "Employer name, phone number, and ratings are required" });
+      return res.status(400).json({
+        message: "Employer name, phone number, and ratings are required"
+      });
     }
 
-    // 🔥 Search BOTH possible locations
-    const worker = await workersCollection.findOne({ 
+    // Find worker by phone (current + future structure)
+    const worker = await workersCollection.findOne({
       $or: [
-        { emergencyContact: emergencyContact },           // Your current structure ✅
-        { "safety.emergencyContact": emergencyContact }   // Future structure
+        { emergencyContact: emergencyContact },
+        { "safety.emergencyContact": emergencyContact }
       ]
     });
 
     if (!worker) {
-      return res.status(404).json({ 
-        message: "Worker not found with this phone number. Please verify." 
+      return res.status(404).json({
+        message: "Worker not found with this phone number. Please verify."
       });
     }
 
+    // 1) Map satisfaction text -> numeric rating (1-5)
+    const numericRating = mapSatisfactionToRating(
+      ratings.overallSatisfaction
+    );
+
+    // 2) Compute sentiment from review text
+    const sentimentScore01 = computeSentimentScore(
+      improvementSuggestions || ""
+    );
+
+    const nowISO = new Date().toISOString();
+
     const feedback = {
       employerName,
-      date: date || new Date().toISOString(),
+      date: date || nowISO,
       ratings,
       improvementSuggestions: improvementSuggestions || "",
-      createdAt: new Date().toISOString()
+      createdAt: nowISO,
+      numericRating,        // new field
+      sentimentScore01      // new field
     };
 
+    // Store feedback
     await workersCollection.updateOne(
       { _id: worker._id },
-      { 
+      {
         $push: { feedbacks: feedback },
         $inc: { feedbackCount: 1 }
       }
-    );
+    ); // [web:9]
+
+    // Recompute trust score based on all feedbacks
+    await recomputeWorkerTrust(worker._id);
+
+    const updatedWorker = await workersCollection.findOne({ _id: worker._id });
 
     res.status(201).json({
       message: "Feedback submitted successfully!",
       workerName: worker.name,
+      trustScore: updatedWorker.trustScore,
+      trustMeta: updatedWorker.trustMeta,
       feedback
     });
-
   } catch (error) {
     console.error("Feedback error:", error);
     res.status(500).json({ message: "Server error" });
@@ -334,8 +548,7 @@ app.get("/api/workers/by-phone/:phone", async (req, res) => {
   try {
     const { phone } = req.params;
 
-    // 🔥 Search BOTH possible locations
-    const worker = await workersCollection.findOne({ 
+    const worker = await workersCollection.findOne({
       $or: [
         { emergencyContact: phone },
         { "safety.emergencyContact": phone }
@@ -383,7 +596,7 @@ app.get("/api/workers/:phone/feedbacks", async (req, res) => {
   try {
     const { phone } = req.params;
 
-    const worker = await workersCollection.findOne({ 
+    const worker = await workersCollection.findOne({
       $or: [
         { emergencyContact: phone },
         { "safety.emergencyContact": phone }
