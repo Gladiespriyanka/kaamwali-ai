@@ -4,9 +4,25 @@ import { useNavigate } from 'react-router-dom';
 import { getMetrics } from '../api';
 import { useLanguage } from '../contexts/LanguageContext';
 
+const API_BASE =
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:4000'
+    : 'https://kaamwali-ai-backend.onrender.com'; // [web:78]
+
 const WorkerDashboard = () => {
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState(null);
+
+  const [status, setStatus] = useState('unknown'); // 'unknown' | 'available' | 'hired' [web:80]
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    workerPhone: '',
+    employerName: '',
+    employerPhone: '',
+    householdName: '',
+    fromDate: '',
+  });
+  const [message, setMessage] = useState('');
 
   const { messages } = useLanguage();
   const t = (messages && messages.workerDashboard) || {};
@@ -17,6 +33,82 @@ const WorkerDashboard = () => {
       .catch(() => {});
   }, []);
 
+  const handleChange = (e) => {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const callSelfHire = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/api/worker/self-hire`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, // [web:72][web:73]
+        body: JSON.stringify({
+          emergencyContact: form.workerPhone,
+          employerName: form.employerName,
+          employerPhone: form.employerPhone || undefined,
+          householdName: form.householdName || undefined,
+          fromDate: form.fromDate || new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.message || 'Failed to update hire status');
+      } else {
+        setStatus('hired');
+        setMessage('Marked as hired for this household.');
+      }
+    } catch (err) {
+      console.error('self-hire error', err);
+      setMessage('Server error while marking hired.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const callSelfRelease = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/api/worker/self-release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emergencyContact: form.workerPhone,
+          endDate: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.message || 'Failed to update availability');
+      } else {
+        setStatus('available');
+        setMessage('You are now marked as available for new work.');
+      }
+    } catch (err) {
+      console.error('self-release error', err);
+      setMessage('Server error while marking available.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusLabel =
+    status === 'hired'
+      ? 'Hired (currently working)'
+      : status === 'available'
+      ? 'Available for work'
+      : 'Status unknown (please update once)';
+
+  const statusColor =
+    status === 'hired' ? '#B91C1C' : status === 'available' ? '#166534' : '#6B7280';
+  const statusBg =
+    status === 'hired' ? '#FEE2E2' : status === 'available' ? '#DCFCE7' : '#E5E7EB';
+
   return (
     <>
       {/* Ratio bar (same as AppContent) */}
@@ -25,12 +117,10 @@ const WorkerDashboard = () => {
         <div className="topbar-right">
           {metrics ? (
             <span className="topbar-tagline">
-              {metrics.workersCount} {/* keep number */}
-              {' '}
+              {metrics.workersCount}{' '}
               {t.taglineWorkersCount || 'women onboarded'}
               {' · '}
-              {metrics.employersCount}
-              {' '}
+              {metrics.employersCount}{' '}
               {t.taglineEmployersCount || 'homes reached'}
             </span>
           ) : (
@@ -163,6 +253,154 @@ const WorkerDashboard = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Real availability card */}
+          <section className="kw-section">
+            <div
+              style={{
+                maxWidth: 520,
+                margin: '0 auto',
+                background: '#ffffff',
+                borderRadius: 16,
+                border: '1px solid #D1E7DD',
+                padding: 20,
+                boxShadow: '0 12px 30px rgba(10, 40, 25, 0.08)',
+              }}
+            >
+              <h2 style={{ margin: 0, marginBottom: 8, fontSize: 20, fontWeight: 800 }}>
+                Your availability
+              </h2>
+              <p style={{ margin: 0, marginBottom: 12, fontSize: 13, color: '#6B7280' }}>
+                Update whether you are currently hired or free for new work.
+              </p>
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  background: statusBg,
+                  color: statusColor,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  marginBottom: 12,
+                }}
+              >
+                Status: {statusLabel}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700 }}>
+                    Your phone number (same as emergency contact)
+                  </label>
+                  <input
+                    name="workerPhone"
+                    value={form.workerPhone}
+                    onChange={handleChange}
+                    placeholder="Your phone"
+                    style={{
+                      height: 40,
+                      borderRadius: 10,
+                      border: '1px solid #D1E7DD',
+                      padding: '0 10px',
+                      fontSize: 14,
+                    }}
+                  />
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px solid #E5E7EB', margin: '6px 0 8px' }} />
+
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Mark myself as currently hired</div>
+                <div style={{ fontSize: 12, color: '#6B7280' }}>
+                  Fill this when you start working at a new household.
+                </div>
+
+                <input
+                  name="employerName"
+                  value={form.employerName}
+                  onChange={handleChange}
+                  placeholder="Employer name"
+                  style={{
+                    height: 40,
+                    borderRadius: 10,
+                    border: '1px solid #D1E7DD',
+                    padding: '0 10px',
+                    fontSize: 14,
+                  }}
+                />
+                <input
+                  name="employerPhone"
+                  value={form.employerPhone}
+                  onChange={handleChange}
+                  placeholder="Employer phone (optional)"
+                  style={{
+                    height: 40,
+                    borderRadius: 10,
+                    border: '1px solid #D1E7DD',
+                    padding: '0 10px',
+                    fontSize: 14,
+                  }}
+                />
+                <input
+                  name="householdName"
+                  value={form.householdName}
+                  onChange={handleChange}
+                  placeholder="Household name (optional)"
+                  style={{
+                    height: 40,
+                    borderRadius: 10,
+                    border: '1px solid #D1E7DD',
+                    padding: '0 10px',
+                    fontSize: 14,
+                  }}
+                />
+                <input
+                  type="date"
+                  name="fromDate"
+                  value={form.fromDate}
+                  onChange={handleChange}
+                  style={{
+                    height: 40,
+                    borderRadius: 10,
+                    border: '1px solid #D1E7DD',
+                    padding: '0 10px',
+                    fontSize: 14,
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={callSelfHire}
+                  disabled={loading}
+                  className="kw-btn kw-btn-primary"
+                >
+                  {loading ? 'Updating...' : 'Mark myself as hired at this household'}
+                </button>
+
+                <hr style={{ border: 'none', borderTop: '1px solid #E5E7EB', margin: '10px 0' }} />
+
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Mark job done / I am free now</div>
+                <div style={{ fontSize: 12, color: '#6B7280' }}>
+                  Use this when you stop working at your current household.
+                </div>
+
+                <button
+                  type="button"
+                  onClick={callSelfRelease}
+                  disabled={loading}
+                  className="kw-btn kw-btn-outline"
+                >
+                  {loading ? 'Updating...' : 'Mark myself as available for new work'}
+                </button>
+
+                {message && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#6B7280' }}>{message}</div>
+                )}
               </div>
             </div>
           </section>

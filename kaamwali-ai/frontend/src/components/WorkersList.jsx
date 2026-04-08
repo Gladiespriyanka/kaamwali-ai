@@ -1,4 +1,4 @@
-// frontend/WorkersList.jsx (or similar)
+// frontend/WorkersList.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -348,169 +348,230 @@ export default function WorkersList() {
           )}
 
           <div style={{ display: 'grid', gap: 14 }}>
-            {workers.map((w) => (
-              <div
-                key={w._id}
-                style={{
-                  background: '#fff', borderRadius: 16, border: `1px solid ${theme.border}`,
-                  boxShadow: '0 8px 18px rgba(17, 33, 20, 0.08)',
-                  minHeight: 130, position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
+            {workers.map((w) => {
+              const hasReviews = w.trustMeta && (w.trustMeta.reviewsCount || 0) > 0;
+              const displayTrust =
+                hasReviews && w.trustScore != null ? Math.round(w.trustScore) : null;
+
+              return (
                 <div
-                  className="flip-container"
-                  onMouseEnter={() => setFlipped({ ...flipped, [w._id]: true })}
-                  onMouseLeave={() => setFlipped({ ...flipped, [w._id]: false })}
-                  onClick={() => setFlipped({ ...flipped, [w._id]: !flipped[w._id] })}
+                  key={w._id}
+                  style={{
+                    background: '#fff', borderRadius: 16, border: `1px solid ${theme.border}`,
+                    boxShadow: '0 8px 18px rgba(17, 33, 20, 0.08)',
+                    minHeight: 130, position: 'relative',
+                    overflow: 'hidden',
+                  }}
                 >
-                  <div className={`flip-inner ${flipped[w._id] ? 'flipped' : ''}`}>
-                    {/* ===== FRONT SIDE ===== */}
-                    <div
-                      className="flip-front"
-                      style={{
-                        padding: 14,
-                        background: '#fff',
-                        borderRadius: 16,
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <h2 style={{ margin: 0, color: theme.text, fontSize: 20, fontWeight: 800, marginBottom: 8 }}>
-                          {w.name || 'Worker'}
-                        </h2>
-                        <p style={{ margin: '3px 0', color: theme.secondary, fontSize: 14, fontWeight: 500 }}>
-                          📍 Location: {w.cityArea || 'Location not set'}
-                        </p>
-                        <p style={{ margin: '3px 0 0', color: theme.secondary, fontSize: 14, fontWeight: 500 }}>
-                          ⏱️ Experience: {w.experienceYears != null ? `${w.experienceYears} yrs` : 'NA'}
-                        </p>
-                      </div>
-
-                      <div style={{
-                        marginTop: 8,
-                        padding: '6px 10px',
-                        background: '#F0F9F6',
-                        borderRadius: 8,
-                        fontSize: 11,
-                        color: theme.primary,
-                        fontWeight: 600,
-                        textAlign: 'center',
-                        letterSpacing: '0.05em',
-                      }}>
-                        Hover to flip →
-                      </div>
-                    </div>
-
-                    {/* ===== BACK SIDE ===== */}
-                    <div
-                      className="flip-back"
-                      style={{
-                        padding: 14,
-                        background: `linear-gradient(135deg, #f5f9f7 0%, #fff 100%)`,
-                        borderRadius: 16,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: '0 0 6px 0', color: theme.secondary, fontSize: 13, fontWeight: 500 }}>
-                          <strong>Skills:</strong> {w.skills && w.skills.length ? w.skills.slice(0, 2).join(', ') : 'NA'}
-                        </p>
-
-                        <p style={{ margin: '0 0 8px 0', color: theme.secondary, fontSize: 13, fontWeight: 500 }}>
-                          <strong>Expected Salary:</strong> ₹{w.expectedSalary ? w.expectedSalary : 'NA'}
-                        </p>
-
-                        {/* Trust, cluster, rehire, reviews */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                          <div
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '4px 10px',
-                              borderRadius: 999,
-                              background: '#E6F4EE',
-                              color: theme.primary,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              width: 'fit-content',
-                            }}
-                            title={
-                              w.trustMeta
-                                ? `Rating: ${w.trustMeta.avgRating?.toFixed?.(1) || '--'} ★ · ` +
-                                  `Sentiment: ${(w.trustMeta.sentimentScore01 * 100).toFixed(0)}% · ` +
-                                  `Consistency: ${(w.trustMeta.consistency * 100).toFixed(0)}% · ` +
-                                  `Activity: ${(w.trustMeta.activity * 100).toFixed(0)}%`
-                                : 'Trust Score based on ratings, sentiment, consistency and recent activity'
-                            }
-                          >
-                            ⭐ Trust: {w.trustScore != null ? Math.round(w.trustScore) : 'NA'}/100
+                  <div
+                    className="flip-container"
+                    onMouseEnter={() => setFlipped({ ...flipped, [w._id]: true })}
+                    onMouseLeave={() => setFlipped({ ...flipped, [w._id]: false })}
+                    onClick={() => setFlipped({ ...flipped, [w._id]: !flipped[w._id] })}
+                  >
+                    <div className={`flip-inner ${flipped[w._id] ? 'flipped' : ''}`}>
+                      {/* ===== FRONT SIDE ===== */}
+                      <div
+                        className="flip-front"
+                        style={{
+                          padding: 14,
+                          background: '#fff',
+                          borderRadius: 16,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <h2
+                              style={{
+                                margin: 0,
+                                color: theme.text,
+                                fontSize: 20,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {w.name || 'Worker'}
+                            </h2>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                background: w.isHired ? '#FEE2E2' : '#DCFCE7',
+                                color: w.isHired ? '#B91C1C' : '#166534',
+                              }}
+                            >
+                              {w.isHired ? 'Hired' : 'Available'}
+                            </span>
                           </div>
 
-                          {w.trustMeta && (
-                            <div style={{ fontSize: 11, color: theme.secondary }}>
-                              Segment{' '}
-                              <span
-                                style={{
-                                  fontWeight: 700,
-                                  color:
-                                    w.trustMeta.cluster === 'high'
-                                      ? '#15803D'
-                                      : w.trustMeta.cluster === 'risky'
-                                      ? '#B91C1C'
-                                      : theme.secondary,
-                                }}
-                              >
-                                {w.trustMeta.cluster === 'high'
-                                  ? 'Highly trusted'
-                                  : w.trustMeta.cluster === 'risky'
-                                  ? 'Risky'
-                                  : 'Average'}
-                              </span>
-                              {typeof w.trustMeta.rehireProbability === 'number' && (
-                                <> · Rehire {(w.trustMeta.rehireProbability * 100).toFixed(0)}%</>
-                              )}
-                            </div>
-                          )}
+                          <p
+                            style={{
+                              margin: '3px 0',
+                              color: theme.secondary,
+                              fontSize: 14,
+                              fontWeight: 500,
+                            }}
+                          >
+                            📍 Location: {w.cityArea || 'Location not set'}
+                          </p>
 
-                          {w.trustMeta && (
-                            <div style={{ fontSize: 11, color: theme.secondary }}>
-                              {w.trustMeta.reviewsCount || 0} review
-                              {(w.trustMeta.reviewsCount || 0) === 1 ? '' : 's'}
-                            </div>
-                          )}
+                          <p style={{ margin: '3px 0 0', color: theme.secondary, fontSize: 14, fontWeight: 500 }}>
+                            ⏱️ Experience: {w.experienceYears != null ? `${w.experienceYears} yrs` : 'NA'}
+                          </p>
+                        </div>
+
+                        <div style={{
+                          marginTop: 8,
+                          padding: '6px 10px',
+                          background: '#F0F9F6',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          color: theme.primary,
+                          fontWeight: 600,
+                          textAlign: 'center',
+                          letterSpacing: '0.05em',
+                        }}>
+                          Hover to flip →
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleViewResume(w._id)}
+                      {/* ===== BACK SIDE ===== */}
+                      <div
+                        className="flip-back"
                         style={{
-                          width: 'auto', marginTop: 2, marginLeft: 'auto',
-                          border: 'none', background: theme.primary, color: '#fff',
-                          borderRadius: 8, padding: '8px 16px', fontWeight: 700,
-                          fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 10px rgba(46,125,94,0.18)',
-                          transition: 'background 0.2s ease, transform 0.2s ease',
-                          flexShrink: 0,
-                          whiteSpace: 'nowrap',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#235F48';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = theme.primary;
-                          e.currentTarget.style.transform = 'translateY(0)';
+                          padding: 14,
+                          background: `linear-gradient(135deg, #f5f9f7 0%, #fff 100%)`,
+                          borderRadius: 16,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
                         }}
                       >
-                        View Resume
-                      </button>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: '0 0 6px 0', color: theme.secondary, fontSize: 13, fontWeight: 500 }}>
+                            <strong>Skills:</strong> {w.skills && w.skills.length ? w.skills.slice(0, 2).join(', ') : 'NA'}
+                          </p>
+
+                          <p style={{ margin: '0 0 8px 0', color: theme.secondary, fontSize: 13, fontWeight: 500 }}>
+                            <strong>Expected Salary:</strong> ₹{w.expectedSalary ? w.expectedSalary : 'NA'}
+                          </p>
+
+                          {/* Trust, cluster, rehire, reviews */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px 10px',
+                                borderRadius: 999,
+                                background: '#E6F4EE',
+                                color: theme.primary,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                width: 'fit-content',
+                              }}
+                              title={
+                                w.trustMeta
+                                  ? `Rating: ${w.trustMeta.avgRating?.toFixed?.(1) || '--'} ★ · ` +
+                                    `Sentiment: ${(w.trustMeta.sentimentScore01 * 100).toFixed(0)}% · ` +
+                                    `Consistency: ${(w.trustMeta.consistency * 100).toFixed(0)}% · ` +
+                                    `Activity: ${(w.trustMeta.activity * 100).toFixed(0)}%`
+                                  : 'Trust Score based on ratings, sentiment, consistency and recent activity'
+                              }
+                            >
+                              ⭐ Trust:{' '}
+                              {displayTrust !== null ? `${displayTrust}/100` : 'No reviews yet'}
+                            </div>
+
+                            {w.trustMeta && (
+                              <div style={{ fontSize: 11, color: theme.secondary }}>
+                                Segment{' '}
+                                <span
+                                  style={{
+                                    fontWeight: 700,
+                                    color:
+                                      w.trustMeta.cluster === 'high'
+                                        ? '#15803D'
+                                        : w.trustMeta.cluster === 'risky'
+                                        ? '#B91C1C'
+                                        : theme.secondary,
+                                  }}
+                                >
+                                  {w.trustMeta.cluster === 'high'
+                                    ? 'Highly trusted'
+                                    : w.trustMeta.cluster === 'risky'
+                                    ? 'Risky'
+                                    : 'Average'}
+                                </span>
+                                {typeof w.trustMeta.rehireProbability === 'number' && (
+                                  <> · Rehire {(w.trustMeta.rehireProbability * 100).toFixed(0)}%</>
+                                )}
+                              </div>
+                            )}
+
+                            {w.trustMeta && (
+                              <div style={{ fontSize: 11, color: theme.secondary }}>
+                                {w.trustMeta.reviewsCount || 0} review
+                                {(w.trustMeta.reviewsCount || 0) === 1 ? '' : 's'}
+                              </div>
+                            )}
+
+                            {/* Hire history summary */}
+                            {Array.isArray(w.hireHistory) && w.hireHistory.length > 0 && (
+                              <div style={{ marginTop: 6, fontSize: 11, color: theme.secondary }}>
+                                <div>
+                                  Past households: {w.hireHistory.length}
+                                </div>
+                                {(() => {
+                                  const last = w.hireHistory[w.hireHistory.length - 1];
+                                  const fromStr = last.fromDate
+                                    ? new Date(last.fromDate).toLocaleDateString()
+                                    : '';
+                                  const toStr = last.toDate
+                                    ? new Date(last.toDate).toLocaleDateString()
+                                    : 'Present';
+                                  return (
+                                    <div>
+                                      Last job: {last.householdName || last.employerName || 'Household'} (
+                                      {fromStr} – {toStr})
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleViewResume(w._id)}
+                          style={{
+                            width: 'auto', marginTop: 2, marginLeft: 'auto',
+                            border: 'none', background: theme.primary, color: '#fff',
+                            borderRadius: 8, padding: '8px 16px', fontWeight: 700,
+                            fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 10px rgba(46,125,94,0.18)',
+                            transition: 'background 0.2s ease, transform 0.2s ease',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#235F48';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = theme.primary;
+                            e.currentTarget.style.transform = 'translateY(0)';
+                          }}
+                        >
+                          View Resume
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

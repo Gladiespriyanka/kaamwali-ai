@@ -15,7 +15,7 @@ import {
 import { connectDB } from './db.js';
 import i18nRouter from './routes/i18n.js';
 import { CITY_MAP } from './cityMap.js';
-import Sentiment from 'sentiment';  // [web:1]
+import Sentiment from 'sentiment';  // [web:43]
 
 const sentiment = new Sentiment();
 
@@ -43,7 +43,7 @@ const sessions = new Map();
 let workersCollection = null;
 let usersCollection = null;
 
-// ------------------ TRUST SCORE HELPERS ------------------
+/* ------------------ TRUST SCORE HELPERS ------------------ */
 
 // Map text satisfaction -> numeric rating (1-5)
 function mapSatisfactionToRating(text) {
@@ -61,13 +61,13 @@ function mapSatisfactionToRating(text) {
 
 // Compute sentiment from free-text review (improvementSuggestions)
 function computeSentimentScore(text) {
-  if (!text || !text.trim()) return 0.5; // neutral if empty
-  const result = sentiment.analyze(text); // [web:1]
+  if (!text || !text.trim()) return 0.5;
+  const result = sentiment.analyze(text); // [web:43]
   const maxPossible = 10;
   let normalized = result.score / maxPossible;
   if (normalized > 1) normalized = 1;
   if (normalized < -1) normalized = -1;
-  return (normalized + 1) / 2; // -1..1 -> 0..1
+  return (normalized + 1) / 2;
 }
 
 // Recompute Trust Score for a single worker document
@@ -102,32 +102,27 @@ async function recomputeWorkerTrust(workerId) {
     return;
   }
 
-  // 1) avgRating 1-5
   const ratings = feedbacks.map((f) => f.numericRating || 3);
   const sumRatings = ratings.reduce((s, r) => s + r, 0);
   const avgRating = sumRatings / n;
 
-  // 2) sentiment average (each feedback has sentimentScore01 0..1)
   const sentiments = feedbacks.map((f) =>
     typeof f.sentimentScore01 === 'number' ? f.sentimentScore01 : 0.5
   );
   const avgSentiment =
     sentiments.reduce((s, v) => s + v, 0) / sentiments.length;
 
-  // 3) consistency from variance of ratings
   const mean = avgRating;
   const variance =
     ratings.reduce((s, r) => s + Math.pow(r - mean, 2), 0) / n;
-  const maxVar = 2; // heuristic cap
+  const maxVar = 2;
   let consistency = 1 - variance / maxVar;
   if (consistency < 0) consistency = 0;
   if (consistency > 1) consistency = 1;
 
-  // 4) experience from worker.experienceYears (0-10 years -> 0..1)
   const yearsExp = Number(worker.experienceYears || 0);
   const experience = Math.min(Math.max(yearsExp, 0), 10) / 10;
 
-  // 5) activity from recency (exponential decay with half-life) [web:30]
   const now = Date.now();
   const halfLifeDays = 90;
   const k =
@@ -139,19 +134,17 @@ async function recomputeWorkerTrust(workerId) {
     const weight = Math.exp(-k * ageMs);
     activitySum += weight;
   });
-  const activity = Math.min(activitySum / 10, 1); // normalized 0..1
+  const activity = Math.min(activitySum / 10, 1);
 
-  // Final trust score 0-100
   const trustScoreRaw =
-    avgRating * 20 +           // 1-5 -> 0-100
-    avgSentiment * 30 +        // 0-1 -> 0-30
-    consistency * 20 +         // 0-1 -> 0-20
-    experience * 10 +          // 0-1 -> 0-10
-    activity * 20;             // 0-1 -> 0-20
+    avgRating * 20 +
+    avgSentiment * 30 +
+    consistency * 20 +
+    experience * 10 +
+    activity * 20;
 
   const trustScore = Math.max(0, Math.min(trustScoreRaw, 100));
 
-  // ---- rehire + cluster ----
   const baseMeta = {
     avgRating,
     sentimentScore01: avgSentiment,
@@ -186,7 +179,7 @@ async function recomputeWorkerTrust(workerId) {
 
 // logistic + rehiring helpers
 function logistic(x) {
-  return 1 / (1 + Math.exp(-x)); // [web:30]
+  return 1 / (1 + Math.exp(-x));
 }
 
 function computeRehireProbability(meta) {
@@ -198,9 +191,8 @@ function computeRehireProbability(meta) {
     activity,
   } = meta;
 
-  const r = (avgRating - 1) / 4;      // 1–5 -> 0–1
+  const r = (avgRating - 1) / 4;
 
-  // Hand-crafted logistic regression weights
   const z =
     2.0 * r +
     1.5 * sentimentScore01 +
@@ -209,7 +201,7 @@ function computeRehireProbability(meta) {
     1.2 * activity -
     2.0;
 
-  return logistic(z);                 // 0–1
+  return logistic(z);
 }
 
 function createSessionId() {
@@ -311,8 +303,8 @@ app.post('/api/profile/complete', async (req, res) => {
 
   const worker = {
     ...draft,
-    trustScore,                         // initial score from profile
-    trustMeta: {                        // will be updated by feedback
+    trustScore,
+    trustMeta: {
       avgRating: 0,
       sentimentScore01: 0.5,
       consistency: 0,
@@ -322,14 +314,20 @@ app.post('/api/profile/complete', async (req, res) => {
       rehireProbability: 0,
       cluster: 'average',
     },
+    // hire status
+    isHired: false,
+    currentEmployerPhone: null,
+    lastHiredAt: null,
+    hireHistory: [],
+
     createdAt: new Date().toISOString(),
     safety: {
       emergencyContactAdded: !!draft.emergencyContact,
       emergencyContact: draft.emergencyContact
     },
     searchKey_en: buildSearchKeyEn(draft),
-    feedbacks: [],                      // feedback array
-    feedbackCount: 0                    // total feedbacks
+    feedbacks: [],
+    feedbackCount: 0
   };
 
   try {
@@ -393,7 +391,7 @@ app.get('/api/workers', async (req, res) => {
   try {
     const mongoWorkers = await workersCollection
       .find(query)
-      .sort({ trustScore: -1 })   // highest trust first [web:9]
+      .sort({ trustScore: -1 })
       .toArray();
     res.json({ workers: mongoWorkers });
   } catch (err) {
@@ -427,7 +425,9 @@ app.post('/api/signup', async (req, res) => {
       city,
       role,
       password: hashedPassword,
-      createdAt: new Date()
+      createdAt: new Date(),
+      safetyIncidents: 0,
+      isBlocked: false,
     };
 
     await usersCollection.insertOne(user);
@@ -455,6 +455,12 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ error: "Wrong password" });
     }
 
+    if (user.isBlocked) {
+      return res.status(403).json({
+        message: 'Your account has been blocked due to safety incidents.',
+      });
+    }
+
     res.json({ message: "Login success", user });
 
   } catch (err) {
@@ -464,7 +470,6 @@ app.post('/api/login', async (req, res) => {
 
 /* ------------------ FEEDBACK SYSTEM ------------------ */
 
-// Advanced feedback with Trust Score recompute
 app.post("/api/feedback", async (req, res) => {
   try {
     const {
@@ -481,7 +486,6 @@ app.post("/api/feedback", async (req, res) => {
       });
     }
 
-    // Find worker by phone (current + future structure)
     const worker = await workersCollection.findOne({
       $or: [
         { emergencyContact: emergencyContact },
@@ -495,12 +499,10 @@ app.post("/api/feedback", async (req, res) => {
       });
     }
 
-    // 1) Map satisfaction text -> numeric rating (1-5)
     const numericRating = mapSatisfactionToRating(
       ratings.overallSatisfaction
     );
 
-    // 2) Compute sentiment from review text
     const sentimentScore01 = computeSentimentScore(
       improvementSuggestions || ""
     );
@@ -513,20 +515,18 @@ app.post("/api/feedback", async (req, res) => {
       ratings,
       improvementSuggestions: improvementSuggestions || "",
       createdAt: nowISO,
-      numericRating,        // new field
-      sentimentScore01      // new field
+      numericRating,
+      sentimentScore01
     };
 
-    // Store feedback
     await workersCollection.updateOne(
       { _id: worker._id },
       {
         $push: { feedbacks: feedback },
         $inc: { feedbackCount: 1 }
       }
-    ); // [web:9]
+    );
 
-    // Recompute trust score based on all feedbacks
     await recomputeWorkerTrust(worker._id);
 
     const updatedWorker = await workersCollection.findOne({ _id: worker._id });
@@ -571,6 +571,244 @@ app.get("/api/workers/by-phone/:phone", async (req, res) => {
   }
 });
 
+/* ------------------ HIRE STATUS (EMPLOYER) ------------------ */
+
+app.post('/api/workers/:id/hire', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { employerPhone } = req.body || {};
+
+    if (!employerPhone) {
+      return res.status(400).json({ message: 'Employer phone required' });
+    }
+
+    const employerUser = await usersCollection.findOne({
+      phone: employerPhone,
+      role: 'employer',
+    });
+
+    if (!employerUser) {
+      return res.status(404).json({ message: 'Employer not found' });
+    }
+
+    if (employerUser.isBlocked) {
+      return res.status(403).json({
+        message: 'Your account has been blocked due to safety incidents.',
+      });
+    }
+
+    const result = await workersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          isHired: true,
+          currentEmployerPhone: employerPhone,
+          lastHiredAt: new Date().toISOString(),
+        },
+      }
+    );
+
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+
+    res.json({ message: 'Worker marked as hired' });
+  } catch (err) {
+    console.error('Hire error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.post('/api/workers/:id/release', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await workersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          isHired: false,
+          currentEmployerPhone: null,
+        },
+      }
+    );
+
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+
+    res.json({ message: 'Worker marked as available' });
+  } catch (err) {
+    console.error('Release error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/* ------------------ HIRE STATUS (WORKER SELF) ------------------ */
+
+app.post('/api/worker/self-hire', async (req, res) => {
+  try {
+    const {
+      emergencyContact,
+      employerName,
+      employerPhone,
+      householdName,
+      fromDate
+    } = req.body || {};
+
+    if (!emergencyContact || !employerName || !fromDate) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const worker = await workersCollection.findOne({
+      $or: [
+        { emergencyContact },
+        { 'safety.emergencyContact': emergencyContact },
+      ],
+    });
+
+    if (!worker) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+
+    const hireEntry = {
+      employerName,
+      employerPhone: employerPhone || null,
+      householdName: householdName || null,
+      fromDate,
+      toDate: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    await workersCollection.updateOne(
+      { _id: worker._id },
+      {
+        $set: {
+          isHired: true,
+          currentEmployerPhone: employerPhone || null,
+          lastHiredAt: fromDate,
+        },
+        $push: { hireHistory: hireEntry },
+      }
+    );
+
+    res.json({ message: 'Hire status updated', hireEntry });
+  } catch (err) {
+    console.error('Self hire error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.post('/api/worker/self-release', async (req, res) => {
+  try {
+    const { emergencyContact, endDate } = req.body || {};
+
+    if (!emergencyContact) {
+      return res.status(400).json({ message: 'Worker phone required' });
+    }
+
+    const worker = await workersCollection.findOne({
+      $or: [
+        { emergencyContact },
+        { 'safety.emergencyContact': emergencyContact },
+      ],
+    });
+
+    if (!worker) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+
+    const latest = (worker.hireHistory || []).slice(-1)[0];
+    if (!latest || latest.toDate) {
+      await workersCollection.updateOne(
+        { _id: worker._id },
+        {
+          $set: {
+            isHired: false,
+            currentEmployerPhone: null,
+          },
+        }
+      );
+      return res.json({ message: 'Marked as available' });
+    }
+
+    await workersCollection.updateOne(
+      { _id: worker._id, 'hireHistory.fromDate': latest.fromDate },
+      {
+        $set: {
+          'hireHistory.$.toDate': endDate || new Date().toISOString(),
+          isHired: false,
+          currentEmployerPhone: null,
+        },
+      }
+    );
+
+    res.json({ message: 'Job closed, worker available' });
+  } catch (err) {
+    console.error('Self release error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/* ------------------ PANIC / INCIDENTS ------------------ */
+
+app.post('/api/worker/panic', async (req, res) => {
+  try {
+    const { workerPhone, employerPhone, notes } = req.body || {};
+    if (!workerPhone || !employerPhone) {
+      return res.status(400).json({ message: 'Worker and employer phone required' });
+    }
+
+    const worker = await workersCollection.findOne({
+      $or: [
+        { emergencyContact: workerPhone },
+        { 'safety.emergencyContact': workerPhone },
+      ],
+    });
+    const employer = await usersCollection.findOne({ phone: employerPhone, role: 'employer' });
+
+    if (!worker || !employer) {
+      return res.status(404).json({ message: 'Worker or employer not found' });
+    }
+
+    const incident = {
+      workerId: worker._id,
+      employerId: employer._id,
+      workerPhone,
+      employerPhone,
+      notes: notes || '',
+      createdAt: new Date().toISOString(),
+    };
+
+    const db = req.app.locals.db;
+    await db.collection('incidents').insertOne(incident); // [web:69]
+
+    const updated = await usersCollection.findOneAndUpdate(
+      { _id: employer._id },
+      { $inc: { safetyIncidents: 1 } },
+      { returnDocument: 'after' }
+    ); // [web:64][web:68]
+
+    const count = updated.value?.safetyIncidents || 0;
+
+    if (count >= 2) {
+      await usersCollection.updateOne(
+        { _id: employer._id },
+        { $set: { isBlocked: true } }
+      );
+    }
+
+    res.json({
+      message: 'Incident reported',
+      safetyIncidents: count,
+      blocked: count >= 2,
+    });
+  } catch (err) {
+    console.error('Panic error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 /* ------------------ PDF ------------------ */
 
 app.post('/api/workers/:id/generate-pdf', async (req, res) => {
@@ -591,7 +829,6 @@ app.post('/api/workers/:id/generate-pdf', async (req, res) => {
   res.json({ pdfUrl: `/uploads/worker_${id}.pdf` });
 });
 
-// Get all feedbacks for a worker
 app.get("/api/workers/:phone/feedbacks", async (req, res) => {
   try {
     const { phone } = req.params;
@@ -634,6 +871,7 @@ const PORT = process.env.PORT || 4000;
     const db = await connectDB();
     workersCollection = db.collection('workers');
     usersCollection = db.collection('users');
+    app.locals.db = db; // expose for incidents etc. [web:71]
     console.log('MongoDB connected');
   } catch (err) {
     console.error('MongoDB failed, using memory mode');
