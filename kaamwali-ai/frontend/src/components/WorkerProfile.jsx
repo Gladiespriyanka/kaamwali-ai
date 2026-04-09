@@ -1,9 +1,11 @@
 // components/WorkerProfile.jsx
 import React, { useState } from 'react';
 import SharePoster from './SharePoster';
+import { API_BASE } from '../api';
 
 const WorkerProfile = ({ worker: initialWorker, onBack }) => {
   const [worker, setWorker] = useState(initialWorker);
+  const [uploadMsg, setUploadMsg] = useState('');
 
   if (!worker) return null;
 
@@ -44,8 +46,33 @@ const WorkerProfile = ({ worker: initialWorker, onBack }) => {
   document.body.removeChild(link);
 };
 
+const handlePDFUpload = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
+  const formData = new FormData();
+  formData.append('file', file); // must match upload.single('file')
 
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/workers/${worker._id}/upload-pdf`,
+      {
+        method: 'POST',
+        body: formData, // no Content-Type header
+      }
+    );
+    const data = await res.json();
+    if (data.pdfUrl) {
+      setUploadMsg('PDF uploaded successfully.');
+      console.log('Uploaded PDF URL:', data.pdfUrl);
+    } else {
+      setUploadMsg('Error: ' + (data.error || 'Something went wrong'));
+    }
+  } catch (err) {
+    console.error(err);
+    setUploadMsg('Upload failed');
+  }
+};
 
   return (
     <div className="grid-two">
@@ -87,6 +114,22 @@ const WorkerProfile = ({ worker: initialWorker, onBack }) => {
               Experience: {worker.experienceYears} years
             </p>
           </div>
+        </div>
+
+        {/* PDF Upload */}
+        <div style={{ marginTop: 16 }}>
+          <label style={{ fontSize: 13, fontWeight: 600 }}>
+            Upload your profile PDF (optional)
+          </label>
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={handlePDFUpload}
+            style={{ display: 'block', marginTop: 6, fontSize: 12 }}
+          />
+          {uploadMsg && (
+            <div style={{ marginTop: 4, fontSize: 12, color: '#6B7280' }}>{uploadMsg}</div>
+          )}
         </div>
 
         {/* Voice introduction */}

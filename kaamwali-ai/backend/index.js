@@ -36,6 +36,213 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Multer for file uploads
+import multer from 'multer';
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const verificationDir = path.join(uploadsDir, 'verification');
+    if (!fs.existsSync(verificationDir)) {
+      fs.mkdirSync(verificationDir, { recursive: true });
+    }
+    cb(null, verificationDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const basename = path.basename(file.originalname, ext);
+    cb(null, `${basename}-${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({ storage });
+
+app.post('/api/worker/upload-verify', upload.single('document'), async (req, res) => {
+  try {
+    const { workerPhone, docType } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ error: 'File is missing' });
+    }
+    const fileUrl = `/uploads/verification/${req.file.filename}`;
+
+    // Match worker by either top‑level or nested emergencyContact
+    const filter = {
+      $or: [
+        { emergencyContact: workerPhone },
+        { 'safety.emergencyContact': workerPhone },
+      ],
+    };
+
+    await workersCollection.updateOne(
+      filter,
+      {
+        $push: {
+          verificationDocs: {
+            type: docType,
+            url: fileUrl,
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+        $set: { verificationLevel: 'id' },
+      }
+    );
+
+    res.json({ message: 'ID verified', fileUrl });
+  } catch (err) {
+    console.error('Upload‑verify error:', err);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+// Separate endpoint for just uploading verification file (returns fileUrl)
+app.post('/api/upload/verification', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'File is missing' });
+    }
+    const fileUrl = `/uploads/verification/${req.file.filename}`;
+    res.json({ fileUrl });
+  } catch (err) {
+    console.error('File upload error:', err);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+// Separate endpoint for marking verification (after file upload)
+app.post('/api/worker/verify', async (req, res) => {
+  try {
+    const { workerPhone, docType, fileUrl } = req.body;
+    if (!workerPhone || !docType || !fileUrl) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Match worker by either top‑level or nested emergencyContact
+    const filter = {
+      $or: [
+        { emergencyContact: workerPhone },
+        { 'safety.emergencyContact': workerPhone },
+      ],
+    };
+
+    const updateData = {
+      $push: {
+        verificationDocs: {
+          type: docType,
+          url: fileUrl,
+          uploadedAt: new Date().toISOString(),
+        },
+      },
+    };
+
+    // Set verification level based on docType
+    if (docType === 'police') {
+      updateData.$set = { verificationLevel: 'police' };
+    } else if (docType === 'id') {
+      updateData.$set = { verificationLevel: 'id' };
+    } else {
+      updateData.$set = { verificationLevel: 'phone' }; // fallback
+    }
+
+    await workersCollection.updateOne(filter, updateData);
+
+    res.json({ 
+      message: 'Verification updated successfully',
+      verificationLevel: updateData.$set.verificationLevel
+    });
+  } catch (err) {
+    console.error('Verification update error:', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+/* ------------------ PDF generation route (generate on server) ------------------ */
+
+app.post('/api/workers/:id/generate-pdf', async (req, res) => {
+  const { id } = req.params;
+
+  console.log('✅ request received for /api/workers/:id/generate-pdf');
+
+  let worker;
+  if (workersCollection) {
+    worker = await workersCollection.findOne({ _id: new ObjectId(id) });
+  } else {
+    worker = workers.find(w => String(w._id) === String(id));
+  }
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+  try {
+    // Generate unique filename
+    const timestamp = Date.now();
+    const pdfFilename = `worker_${id}_${timestamp}.pdf`;
+    const pdfPath = path.join(uploadsDir, pdfFilename);
+
+    // Generate PDF using the template
+    await generateWorkerPDF(worker, pdfPath);
+
+    const pdfUrlPath = `/uploads/${pdfFilename}`;
+
+    // Optionally save in DB (but don't overwrite uploadedPdfUrl)
+    // await workersCollection.updateOne(
+    //   { _id: worker._id },
+    //   {
+    //     $set: { generatedPdfUrl: pdfUrlPath },
+    //   }
+    // );
+
+    res.json({ pdfUrl: pdfUrlPath });
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    res.status(500).json({ error: 'PDF generation failed' });
+  }
+});
+
+/* ------------------ PDF file upload route (for workers uploading their own PDFs) ------------------ */
+
+// reuse the same multer instance, but change destination to base uploadsDir
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `uploaded_worker_${req.params.id || 'temp'}_${Date.now()}${ext}`);
+  },
+});
+const uploadPdf = multer({ storage: pdfStorage });
+
+app.post('/api/workers/:id/upload-pdf', uploadPdf.single('file'), async (req, res) => {
+  const { id } = req.params;
+
+  console.log('✅ request received for /api/workers/:id/upload-pdf');
+  console.log('req.file:', req.file);
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No PDF file uploaded' });
+  }
+
+  let worker;
+  if (workersCollection) {
+    worker = await workersCollection.findOne({ _id: new ObjectId(id) });
+  } else {
+    worker = workers.find(w => String(w._id) === String(id));
+  }
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+  // use req.file.path instead of recomputing path
+  const pdfPath = req.file.path;
+  const pdfUrlPath = `/uploads/${path.basename(pdfPath)}`;
+
+  // Save uploaded PDF URL in DB
+  await workersCollection.updateOne(
+    { _id: worker._id },
+    {
+      $set: { uploadedPdfUrl: pdfUrlPath },
+    }
+  );
+
+  res.json({ pdfUrl: pdfUrlPath });
+});
+
+// keep this to serve static files
+app.use('/uploads', express.static(uploadsDir));
+
 /* ------------------ STORES ------------------ */
 
 const workers = [];
@@ -320,6 +527,10 @@ app.post('/api/profile/complete', async (req, res) => {
     lastHiredAt: null,
     hireHistory: [],
 
+    // VERIFICATION DEFAULTS
+    verificationLevel: 'unverified',   // unverified | phone | id | police
+    verificationDocs: [],              // [{ type, url, uploadedAt }]
+
     createdAt: new Date().toISOString(),
     safety: {
       emergencyContactAdded: !!draft.emergencyContact,
@@ -350,7 +561,7 @@ app.post('/api/profile/complete', async (req, res) => {
 /* ------------------ EMPLOYER SEARCH ------------------ */
 
 app.get('/api/workers', async (req, res) => {
-  const { cityArea, skill, minExp, maxSalary, q } = req.query;
+  const { cityArea, skill, minExp, maxSalary, q, verification } = req.query;
 
   const query = {};
 
@@ -367,14 +578,21 @@ app.get('/api/workers', async (req, res) => {
 
   if (minExp !== undefined && minExp !== '') {
     query.$expr = {
-      $gte: [{ $toInt: "$experienceYears" }, Number(minExp)]
+      $gte: [{ $toInt: '$experienceYears' }, Number(minExp)]
     };
   }
 
   if (maxSalary !== undefined && maxSalary !== '') {
     query.$expr = {
-      $lte: [{ $toInt: "$expectedSalary" }, Number(maxSalary)]
+      $lte: [{ $toInt: '$expectedSalary' }, Number(maxSalary)]
     };
+  }
+
+  // NEW: verification filter
+  if (verification === 'id') {
+    query.verificationLevel = { $in: ['id', 'police'] };
+  } else if (verification === 'police') {
+    query.verificationLevel = 'police';
   }
 
   if (q) {
@@ -407,13 +625,13 @@ app.post('/api/signup', async (req, res) => {
     const { name, phone, email, password, role, city } = req.body;
 
     if (!password) {
-      return res.status(400).json({ error: "Password required" });
+      return res.status(400).json({ error: 'Password required' });
     }
 
     const existing = await usersCollection.findOne({ phone });
 
     if (existing) {
-      return res.status(400).json({ error: "Phone already registered" });
+      return res.status(400).json({ error: 'Phone already registered' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -432,10 +650,9 @@ app.post('/api/signup', async (req, res) => {
 
     await usersCollection.insertOne(user);
 
-    res.json({ message: "User created" });
-
+    res.json({ message: 'User created' });
   } catch (err) {
-    res.status(500).json({ error: "Signup failed" });
+    res.status(500).json({ error: 'Signup failed' });
   }
 });
 
@@ -446,13 +663,13 @@ app.post('/api/login', async (req, res) => {
     const user = await usersCollection.findOne({ phone });
 
     if (!user) {
-      return res.status(400).json({ error: "Phone number not registered" });
+      return res.status(400).json({ error: 'Phone number not registered' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({ error: "Wrong password" });
+      return res.status(400).json({ error: 'Wrong password' });
     }
 
     if (user.isBlocked) {
@@ -461,16 +678,15 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    res.json({ message: "Login success", user });
-
+    res.json({ message: 'Login success', user });
   } catch (err) {
-    res.status(500).json({ error: "Login failed" });
+    res.status(500).json({ error: 'Login failed' });
   }
 });
 
 /* ------------------ FEEDBACK SYSTEM ------------------ */
 
-app.post("/api/feedback", async (req, res) => {
+app.post('/api/feedback', async (req, res) => {
   try {
     const {
       employerName,
@@ -482,20 +698,20 @@ app.post("/api/feedback", async (req, res) => {
 
     if (!employerName || !emergencyContact || !ratings) {
       return res.status(400).json({
-        message: "Employer name, phone number, and ratings are required"
+        message: 'Employer name, phone number, and ratings are required'
       });
     }
 
     const worker = await workersCollection.findOne({
       $or: [
         { emergencyContact: emergencyContact },
-        { "safety.emergencyContact": emergencyContact }
+        { 'safety.emergencyContact': emergencyContact }
       ]
     });
 
     if (!worker) {
       return res.status(404).json({
-        message: "Worker not found with this phone number. Please verify."
+        message: 'Worker not found with this phone number. Please verify.'
       });
     }
 
@@ -504,7 +720,7 @@ app.post("/api/feedback", async (req, res) => {
     );
 
     const sentimentScore01 = computeSentimentScore(
-      improvementSuggestions || ""
+      improvementSuggestions || ''
     );
 
     const nowISO = new Date().toISOString();
@@ -513,7 +729,7 @@ app.post("/api/feedback", async (req, res) => {
       employerName,
       date: date || nowISO,
       ratings,
-      improvementSuggestions: improvementSuggestions || "",
+      improvementSuggestions: improvementSuggestions || '',
       createdAt: nowISO,
       numericRating,
       sentimentScore01
@@ -532,42 +748,41 @@ app.post("/api/feedback", async (req, res) => {
     const updatedWorker = await workersCollection.findOne({ _id: worker._id });
 
     res.status(201).json({
-      message: "Feedback submitted successfully!",
+      message: 'Feedback submitted successfully!',
       workerName: worker.name,
       trustScore: updatedWorker.trustScore,
       trustMeta: updatedWorker.trustMeta,
       feedback
     });
   } catch (error) {
-    console.error("Feedback error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error('Feedback error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-app.get("/api/workers/by-phone/:phone", async (req, res) => {
+app.get('/api/workers/by-phone/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
 
     const worker = await workersCollection.findOne({
       $or: [
         { emergencyContact: phone },
-        { "safety.emergencyContact": phone }
+        { 'safety.emergencyContact': phone }
       ]
     });
 
     if (!worker) {
-      return res.status(404).json({ message: "Worker not found" });
+      return res.status(404).json({ message: 'Worker not found' });
     }
 
     res.json({
       name: worker.name,
-      role: worker.role || worker.workType || "Housekeeper",
+      role: worker.role || worker.workType || 'Housekeeper',
       emergencyContact: worker.emergencyContact || worker.safety?.emergencyContact
     });
-
   } catch (error) {
-    console.error("Error fetching worker:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error('Error fetching worker:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -750,6 +965,55 @@ app.post('/api/worker/self-release', async (req, res) => {
   }
 });
 
+/* ------------------ VERIFICATION UPLOAD (WORKER) ------------------ */
+
+app.post('/api/worker/verify', async (req, res) => {
+  try {
+    const { workerPhone, docType, fileUrl } = req.body || {};
+
+    if (!workerPhone || !docType || !fileUrl) {
+      return res.status(400).json({ message: 'workerPhone, docType and fileUrl required' });
+    }
+
+    const worker = await workersCollection.findOne({
+      $or: [
+        { emergencyContact: workerPhone },
+        { 'safety.emergencyContact': workerPhone },
+      ],
+    });
+
+    if (!worker) {
+      return res.status(404).json({ message: 'Worker not found' });
+    }
+
+    const newDoc = {
+      type: docType,          // e.g. 'aadhar', 'id', 'police'
+      url: fileUrl,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    const level =
+      docType === 'police'
+        ? 'police'
+        : docType === 'id' || docType === 'aadhar'
+          ? 'id'
+          : 'phone';
+
+    await workersCollection.updateOne(
+      { _id: worker._id },
+      {
+        $push: { verificationDocs: newDoc },
+        $set: { verificationLevel: level },
+      }
+    );
+
+    res.json({ message: 'Verification updated', verificationLevel: level });
+  } catch (err) {
+    console.error('Verify error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 /* ------------------ PANIC / INCIDENTS ------------------ */
 
 app.post('/api/worker/panic', async (req, res) => {
@@ -809,39 +1073,24 @@ app.post('/api/worker/panic', async (req, res) => {
   }
 });
 
-/* ------------------ PDF ------------------ */
+/* ------------------ PDF (old one removed, now covered by multer route above) ------------------ */
 
-app.post('/api/workers/:id/generate-pdf', async (req, res) => {
-  const { id } = req.params;
+// This route is now handled by the multer /api/workers/:id/generate-pdf defined above;
+// you can safely remove the previous raw /api/workers/:id/generate-pdf definition.
 
-  let worker;
-  if (workersCollection) {
-    worker = await workersCollection.findOne({ _id: new ObjectId(id) });
-  } else {
-    worker = workers.find(w => String(w._id) === String(id));
-  }
-
-  if (!worker) return res.status(404).json({ error: 'Worker not found' });
-
-  const pdfPath = path.join(uploadsDir, `worker_${id}.pdf`);
-  await generateWorkerPDF(worker, pdfPath);
-
-  res.json({ pdfUrl: `/uploads/worker_${id}.pdf` });
-});
-
-app.get("/api/workers/:phone/feedbacks", async (req, res) => {
+app.get('/api/workers/:phone/feedbacks', async (req, res) => {
   try {
     const { phone } = req.params;
 
     const worker = await workersCollection.findOne({
       $or: [
         { emergencyContact: phone },
-        { "safety.emergencyContact": phone }
+        { 'safety.emergencyContact': phone }
       ]
     });
 
     if (!worker) {
-      return res.status(404).json({ message: "Worker not found" });
+      return res.status(404).json({ message: 'Worker not found' });
     }
 
     res.json({
@@ -849,10 +1098,9 @@ app.get("/api/workers/:phone/feedbacks", async (req, res) => {
       totalFeedbacks: worker.feedbackCount || 0,
       feedbacks: worker.feedbacks || []
     });
-
   } catch (error) {
-    console.error("Error fetching feedbacks:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error('Error fetching feedbacks:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

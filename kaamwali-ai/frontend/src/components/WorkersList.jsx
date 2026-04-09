@@ -18,6 +18,7 @@ export default function WorkersList() {
     minExp: '',
     maxSalary: '',
     skill: '',
+    verification: '', // ← NEW: verification filter
     sortByTrust: 'yes',
   });
 
@@ -37,13 +38,16 @@ export default function WorkersList() {
       const params = new URLSearchParams();
 
       if (filters.cityArea) {
-        params.append('cityArea', filters.cityArea); // existing city filter
-        params.append('q', filters.cityArea);        // free-text search on searchKey_en
+        params.append('cityArea', filters.cityArea);
+        params.append('q', filters.cityArea);
       }
 
       if (filters.minExp) params.append('minExp', filters.minExp);
       if (filters.maxSalary) params.append('maxSalary', filters.maxSalary);
       if (filters.skill) params.append('skill', filters.skill);
+      
+      // ← NEW: verification filter
+      if (filters.verification) params.append('verification', filters.verification);
 
       if (filters.sortByTrust === 'yes') {
         params.append('sortBy', 'trust');
@@ -79,23 +83,41 @@ export default function WorkersList() {
     fetchWorkers();
   };
 
-  const handleViewResume = async (workerId) => {
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/workers/${workerId}/generate-pdf`,
-        { method: 'POST' }
-      );
-      const data = await res.json();
+  const handleViewResume = async (worker) => {
+    let pdfUrl;
 
-      if (data.pdfUrl) {
-        window.open(`${API_BASE}${data.pdfUrl}`, '_blank');
-      } else {
-        alert('Resume generation failed');
+    // if worker has uploaded PDF, use it
+    if (worker.uploadedPdfUrl) {
+      pdfUrl = worker.uploadedPdfUrl;
+    } else {
+      // fallback: generate PDF on the server
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/workers/${worker._id}/generate-pdf`,
+          { method: 'POST' }
+        );
+        const data = await res.json();
+
+        if (data.pdfUrl) {
+          pdfUrl = data.pdfUrl;
+        } else {
+          alert('Resume generation failed');
+          return;
+        }
+      } catch (err) {
+        console.error('Resume error:', err);
+        alert('Error generating resume');
+        return;
       }
-    } catch (err) {
-      console.error('Resume error:', err);
-      alert('Error generating resume');
     }
+
+    // Download the PDF
+    const link = document.createElement('a');
+    link.href = `${API_BASE}${pdfUrl}`;
+    link.download = `worker_${worker.name || worker._id}_resume.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -161,7 +183,7 @@ export default function WorkersList() {
           .flip-container {
             perspective: 1000px;
             width: 100%;
-            height: 100%;
+            height: 220px;
             cursor: pointer;
           }
           .flip-inner {
@@ -182,9 +204,11 @@ export default function WorkersList() {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            overflow: hidden;
           }
           .flip-back {
             transform: rotateY(180deg);
+            overflow-y: auto;
           }
         `}</style>
 
@@ -208,7 +232,7 @@ export default function WorkersList() {
               onSubmit={handleSearch}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', // ← Changed to 3 columns
                 gap: 14,
                 marginTop: 20,
               }}
@@ -249,6 +273,29 @@ export default function WorkersList() {
                   onFocus={(e) => e.currentTarget.style.borderColor = theme.primary}
                   onBlur={(e) => e.currentTarget.style.borderColor = theme.border}
                 />
+              </div>
+
+              {/* ← NEW: Verification Filter */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: theme.text, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Verification Level
+                </label>
+                <select
+                  name="verification"
+                  value={filters.verification || ''}
+                  onChange={handleChange}
+                  style={{
+                    height: 44, borderRadius: 12, border: `1px solid ${theme.border}`,
+                    padding: '0 12px', fontSize: 14, color: theme.text,
+                    outline: 'none', background: '#fff', transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = theme.primary}
+                  onBlur={(e) => e.currentTarget.style.borderColor = theme.border}
+                >
+                  <option value="">Any</option>
+                  <option value="id">ID Verified</option>
+                  <option value="police">Police Verified</option>
+                </select>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -357,9 +404,12 @@ export default function WorkersList() {
                 <div
                   key={w._id}
                   style={{
-                    background: '#fff', borderRadius: 16, border: `1px solid ${theme.border}`,
+                    background: '#fff',
+                    borderRadius: 16,
+                    border: `1px solid ${theme.border}`,
                     boxShadow: '0 8px 18px rgba(17, 33, 20, 0.08)',
-                    minHeight: 130, position: 'relative',
+                    height: 220,
+                    position: 'relative',
                     overflow: 'hidden',
                   }}
                 >
@@ -368,6 +418,7 @@ export default function WorkersList() {
                     onMouseEnter={() => setFlipped({ ...flipped, [w._id]: true })}
                     onMouseLeave={() => setFlipped({ ...flipped, [w._id]: false })}
                     onClick={() => setFlipped({ ...flipped, [w._id]: !flipped[w._id] })}
+                    style={{ height: 220 }}
                   >
                     <div className={`flip-inner ${flipped[w._id] ? 'flipped' : ''}`}>
                       {/* ===== FRONT SIDE ===== */}
@@ -377,9 +428,13 @@ export default function WorkersList() {
                           padding: 14,
                           background: '#fff',
                           borderRadius: 16,
+                          height: 220,
+                          display: 'flex',
+                          flexDirection: 'column',
                         }}
                       >
                         <div style={{ flex: 1 }}>
+                          {/* ← UPDATED: Added verification badges */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                             <h2
                               style={{
@@ -403,6 +458,36 @@ export default function WorkersList() {
                             >
                               {w.isHired ? 'Hired' : 'Available'}
                             </span>
+
+                            {/* ← NEW: VERIFICATION BADGES */}
+                            {w.verificationLevel === 'police' && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: '#DCFCE7',
+                                  color: '#166534',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Police Verified
+                              </span>
+                            )}
+                            {w.verificationLevel === 'id' && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: '#DBEAFE',
+                                  color: '#1E40AF',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                ID Verified
+                              </span>
+                            )}
                           </div>
 
                           <p
@@ -443,9 +528,10 @@ export default function WorkersList() {
                           padding: 14,
                           background: `linear-gradient(135deg, #f5f9f7 0%, #fff 100%)`,
                           borderRadius: 16,
+                          height: 220,
                           display: 'flex',
                           flexDirection: 'column',
-                          justifyContent: 'space-between',
+                          overflowY: 'auto',
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -481,7 +567,7 @@ export default function WorkersList() {
                                   : 'Trust Score based on ratings, sentiment, consistency and recent activity'
                               }
                             >
-                              ⭐ Trust:{' '}
+                              ⭐ Trust{' '}
                               {displayTrust !== null ? `${displayTrust}/100` : 'No reviews yet'}
                             </div>
 
@@ -545,7 +631,7 @@ export default function WorkersList() {
                         </div>
 
                         <button
-                          onClick={() => handleViewResume(w._id)}
+                          onClick={() => handleViewResume(w)}
                           style={{
                             width: 'auto', marginTop: 2, marginLeft: 'auto',
                             border: 'none', background: theme.primary, color: '#fff',
