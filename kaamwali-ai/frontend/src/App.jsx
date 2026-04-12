@@ -17,8 +17,6 @@ import WorkerDashboard from './components/WorkerDashboard';
 import EmployerDashboard from './components/EmployerDashboard';
 import Feedback from './components/Feedback';
 import { getMetrics } from './api';
-
-// 🔹 NEW: import LanguageProvider
 import { LanguageProvider } from './contexts/LanguageContext';
 
 /* ---------- MAIN APP CONTENT (after login) ---------- */
@@ -35,7 +33,6 @@ const AppContent = () => {
       .catch(() => {});
   }, []);
 
-  // Map URL changes to mode (within the "app" area)
   useEffect(() => {
     const pathToMode = {
       '/app': 'landing',
@@ -67,7 +64,6 @@ const AppContent = () => {
 
   return (
     <div>
-      {/* keep your existing topbar */}
       <header className="topbar">
         <div className="topbar-logo">KaamWali.AI</div>
         <div className="topbar-right">
@@ -76,7 +72,7 @@ const AppContent = () => {
               {metrics.workersCount} women onboarded · {metrics.employersCount} homes reached
             </span>
           ) : (
-            <span className="topbar-tagline">Voice‑first jobs for domestic workers</span>
+            <span className="topbar-tagline">Voice-first jobs for domestic workers</span>
           )}
         </div>
       </header>
@@ -115,35 +111,69 @@ const AppContent = () => {
 
 const AppRoutes = () => {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem('userData');
+    if (!savedUser) {
+      return null;
+    }
 
-  // called when login / signup finishes successfully
-  const handleAuthSuccess = (userType) => {
-    if (userType === 'worker') {
-      navigate('/worker-dashboard');    // Worker section -> WorkerDashboard
+    try {
+      return JSON.parse(savedUser);
+    } catch {
+      localStorage.removeItem('userData');
+      return null;
+    }
+  });
+  const [userRole, setUserRole] = useState(() => localStorage.getItem('userRole'));
+
+  const handleAuthSuccess = (role, user) => {
+    setUserRole(role);
+    setCurrentUser(user || null);
+
+    localStorage.setItem('userRole', role);
+    if (user) {
+      localStorage.setItem('userData', JSON.stringify(user));
     } else {
-      navigate('/employer-dashboard');  // Employer section -> EmployerDashboard
+      localStorage.removeItem('userData');
+    }
+
+    if (role === 'worker') {
+      navigate('/worker-dashboard');
+    } else if (role === 'employer') {
+      navigate('/employer-dashboard');
     }
   };
 
   return (
-    // 🔹 Wrap ALL routes with LanguageProvider
     <LanguageProvider>
       <Routes>
-        {/* First page: login / signup */}
         <Route path="/" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
 
-        {/* Worker & Employer dashboards */}
-        <Route path="/worker-dashboard" element={<WorkerDashboard />} />
-        <Route path="/employer-dashboard" element={<EmployerDashboard />} />
+        <Route
+          path="/worker-dashboard"
+          element={
+            localStorage.getItem('userRole') === 'worker'
+              ? <WorkerDashboard user={currentUser} />
+              : <AuthPage onAuthSuccess={handleAuthSuccess} />
+          }
+        />
+
+        <Route
+          path="/employer-dashboard"
+          element={
+            localStorage.getItem('userRole') === 'employer'
+              ? <EmployerDashboard user={currentUser} />
+              : <AuthPage onAuthSuccess={handleAuthSuccess} />
+          }
+        />
+
         <Route path="/for-employers" element={<WorkersList />} />
         <Route path="/feedback" element={<Feedback />} />
 
-        {/* Main app flows (metrics + voice onboarding + profile + employers) */}
         <Route path="/app" element={<AppContent />} />
         <Route path="/worker-onboard" element={<AppContent />} />
         <Route path="/worker-profile" element={<AppContent />} />
 
-        {/* Any unknown URL → go to auth */}
         <Route path="*" element={<AuthPage onAuthSuccess={handleAuthSuccess} />} />
       </Routes>
     </LanguageProvider>

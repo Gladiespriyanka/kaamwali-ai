@@ -930,3 +930,8 @@ select {
 .kw-nav {
   margin-top: 15px;
 }
+
+/* Hire button hover */
+.hire-btn:hover {
+  background: #235F48 !important;
+}

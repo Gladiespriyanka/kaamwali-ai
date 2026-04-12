@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function Feedback() {
   const navigate = useNavigate();
+  const { messages } = useLanguage();
+  const t = (messages && messages.workerDashboard) || {};
 
   const [ratings, setRatings] = useState({
     workQuality: 0,
@@ -64,24 +67,24 @@ export default function Feedback() {
 
     // Validate required fields
     if (!employerName) {
-      alert("Please enter your name.");
+      alert(t.feedbackErrorName || "Please enter your name.");
       return;
     }
 
     if (!emergencyContact) {
-      alert("Please enter worker phone number.");
+      alert(t.feedbackErrorPhone || "Please enter worker phone number.");
       return;
     }
 
     if (!housekeeperName) {
-      alert("Worker not found with this phone number. Please verify.");
+      alert(t.feedbackErrorNotFound || "Worker not found with this phone number. Please verify.");
       return;
     }
 
     // Check if at least some ratings are filled
     const hasRatings = Object.values(ratings).some(val => val !== "" && val !== 0);
     if (!hasRatings) {
-      alert("Please provide at least one rating.");
+      alert(t.feedbackErrorRatings || "Please provide at least one rating.");
       return;
     }
 
@@ -107,11 +110,11 @@ export default function Feedback() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || "Something went wrong!");
+        alert(data.message || t.feedbackError || "Something went wrong!");
         return;
       }
 
-      alert(`Feedback submitted successfully for ${data.workerName}!`);
+      alert((t.feedbackSuccess || 'Feedback submitted successfully for {name}!').replace('{name}', data.workerName));
       
       // Reset form
       setRatings({
@@ -131,7 +134,7 @@ export default function Feedback() {
 
     } catch (err) {
       console.error("Submit error:", err);
-      alert("Server error while submitting feedback. Please try again.");
+      alert(t.feedbackServerError || "Server error while submitting feedback. Please try again.");
     }
   };
 
@@ -357,7 +360,7 @@ export default function Feedback() {
                 borderRadius: 8,
               }}
             >
-              For Employers
+              {t.landingForEmployers}
             </button>
             <button
               type="button"
@@ -384,18 +387,18 @@ export default function Feedback() {
       <div style={styles.page}>
         <div style={styles.hero}>
           <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 700 }}>
-            Share feedback and help the community
+            {t.feedbackPageTitle}
           </h2>
           <p style={{ margin: "10px 0 0", fontSize: "15px", opacity: 0.95 }}>
-            Tell us how your worker performed, so we can improve trust and matching.
+            {t.feedbackPageSubtitle}
           </p>
         </div>
 
         <div style={styles.card}>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#102a43' }}>Housekeeper Feedback</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#102a43' }}>{t.feedbackFormTitle}</div>
             <div style={{ fontSize: 14, color: '#52606d', marginTop: 6 }}>
-              Your review helps workers grow and employers choose wisely.
+              {t.feedbackFormSubtitle}
             </div>
           </div>
           <div style={styles.progressBar}>
@@ -404,27 +407,27 @@ export default function Feedback() {
 
           <div style={styles.grid}>
             <div style={styles.inputBox}>
-              Employer Name
+              {t.employerNameLabel}
               <input
                 style={styles.input}
                 value={employerName}
                 onChange={(e) => setEmployerName(e.target.value)}
-                placeholder="Your name"
+                placeholder={t.employerNamePlaceholder}
               />
             </div>
 
             <div style={styles.inputBox}>
-              Housekeeper Phone
+              {t.housekeeperPhoneLabel}
               <input
                 style={styles.input}
                 value={emergencyContact}
                 onChange={(e) => setEmergencyContact(e.target.value)}
-                placeholder="10-digit number"
+                placeholder={t.housekeeperPhonePlaceholder}
               />
             </div>
 
             <div style={styles.inputBox}>
-              Date
+              {t.dateLabel}
               <input
                 type="date"
                 style={styles.input}
@@ -434,12 +437,12 @@ export default function Feedback() {
             </div>
 
             <div style={styles.inputBox}>
-              Housekeeper Name
+              {t.housekeeperNameLabel}
               <input
                 style={styles.inputReadonly}
                 value={housekeeperName}
                 readOnly
-                placeholder="Auto-filled from phone"
+                placeholder={t.housekeeperNameAutoFill}
               />
             </div>
           </div>
@@ -447,74 +450,74 @@ export default function Feedback() {
           {/* 🔥 Optional: Show role below name */}
           {workerRole && (
             <div style={{ marginBottom: "20px", fontSize: "13px", color: "#666" }}>
-              Role: <strong>{workerRole}</strong>
+              {t.roleLabel}: <strong>{workerRole}</strong>
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
             <div style={styles.question}>
               <p style={styles.questionText}>
-                Professionalism while working
+                {t.professionalismQuestion}
               </p>
               <StarRating question="professionalism" />
             </div>
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                Skills and competence
+                {t.skillsQuestion}
               </p>
               <StarRating question="skillCompetence" />
             </div>
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                Overall quality of work
+                {t.workQualityQuestion}
               </p>
               <StarRating question="workQuality" />
             </div>
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                Was the housekeeper reliable and punctual?
+                {t.reliabilityQuestion}
               </p>
               <OptionButtons
                 question="reliability"
-                options={["Always", "Sometimes", "Rarely"]}
+                options={[t.reliabilityAlways, t.reliabilitySometimes, t.reliabilityRarely]}
               />
             </div>
 
             <div style={styles.question}>
               <p style={styles.questionText}>
-                Thoroughness in cleaning & organizing
+                {t.attentionDetailQuestion}
               </p>
               <StarRating question="attentionToDetail" />
             </div>
 
             <div style={styles.question}>
-              <p style={styles.questionText}>Overall satisfaction</p>
+              <p style={styles.questionText}>{t.overallSatisfactionQuestion}</p>
               <OptionButtons
                 question="overallSatisfaction"
                 options={[
-                  "Very satisfied",
-                  "Satisfied",
-                  "Neutral",
-                  "Unsatisfied",
+                  t.satisfactionVery,
+                  t.satisfactionYes,
+                  t.satisfactionNeutral,
+                  t.satisfactionNo,
                 ]}
               />
             </div>
 
             <div style={styles.question}>
-              <p style={styles.questionText}>Suggestions for Improvement</p>
+              <p style={styles.questionText}>{t.suggestionsLabel}</p>
               <textarea
                 style={styles.textarea}
                 value={improvementSuggestions}
                 onChange={(e) => setImprovementSuggestions(e.target.value)}
-                placeholder="Optional: Share any suggestions or comments..."
+                placeholder={t.suggestionsPlaceholder}
               />
             </div>
 
             <button type="submit" style={styles.submit}>
-              Submit Feedback
+              {t.submitFeedbackButton}
             </button>
           </form>
         </div>

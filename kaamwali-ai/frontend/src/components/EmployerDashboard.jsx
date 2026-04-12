@@ -1,7 +1,9 @@
 // src/components/EmployerDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMetrics } from '../api';
+import { API_BASE } from '../api';
+import { useLanguage } from '../contexts/LanguageContext';
 
 /* ─── Design tokens — teal/green palette matching screenshot ── */
 const C = {
@@ -246,9 +248,37 @@ const TestimonialCard = ({ quote, name, role, initial, color }) => (
 const EmployerDashboard = () => {
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState(null);
+  const [riskyEmployers, setRiskyEmployers] = useState([]);
+  const latestIncidentRef = useRef(null);
+  const { messages, language, setLanguage } = useLanguage();
+  const t = (messages && messages.workerDashboard) || {};
 
   useEffect(() => {
     getMetrics().then(setMetrics).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/incident-alerts`);
+        const data = await res.json();
+        if (res.ok) {
+          setRiskyEmployers(data.employers || []);
+          const recentIncidents = data.recentIncidents || [];
+          const newestIncidentId = recentIncidents[0]?._id || null;
+          if (latestIncidentRef.current && newestIncidentId && latestIncidentRef.current !== newestIncidentId) {
+            alert('🚨 New safety incident reported!');
+          }
+          latestIncidentRef.current = newestIncidentId;
+        }
+      } catch (err) {
+        console.error('Failed to load safety alerts:', err);
+      }
+    };
+
+    loadAlerts();
+    const interval = setInterval(loadAlerts, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -297,11 +327,16 @@ const EmployerDashboard = () => {
           </div>
 
           <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span className="kw-nav-hide"><NavButton label="For Employers" onClick={() => navigate('/for-employers')} /></span>
+            <span className="kw-nav-hide"><NavButton label={t.employerDashboardTitle || 'For Employers'} onClick={() => navigate('/for-employers')} /></span>
             <span className="kw-nav-hide">
               <NavButton label="How it works"
                 onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} />
             </span>
+            <NavButton label="Logout" onClick={() => {
+              localStorage.removeItem("userRole");
+              localStorage.removeItem("userData");
+              navigate('/');
+            }} />
             <button type="button" onClick={() => navigate('/feedback')} style={{
               background: C.teal, color: C.white, border: 'none',
               borderRadius: 10, padding: '9px 22px', fontWeight: 700,
@@ -311,6 +346,26 @@ const EmployerDashboard = () => {
               onMouseEnter={e => e.currentTarget.style.background = C.tealHover}
               onMouseLeave={e => e.currentTarget.style.background = C.teal}
             >Feedback</button>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: `1px solid ${C.gray200}`,
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                marginLeft: '8px',
+                fontFamily: 'inherit',
+              }}
+            >
+              <option value="en">English</option>
+              <option value="hi">हिंदी</option>
+              <option value="te">తెలుగు</option>
+              <option value="kn">ಕನ್ನಡ</option>
+              <option value="mr">मराठी</option>
+            </select>
           </nav>
         </div>
       </header>
@@ -348,14 +403,14 @@ const EmployerDashboard = () => {
                 fontSize: 44, fontWeight: 800, color: C.white,
                 lineHeight: 1.15, marginBottom: 18, letterSpacing: '-0.02em',
               }}>
-                Hire trusted help for<br />your home, easily
+                {t.employerHeroTitle || 'Hire trusted help for your home, easily'}
               </h1>
 
               <p style={{
                 fontSize: 16, color: C.white, lineHeight: 1.75,
                 marginBottom: 28, maxWidth: 420,
               }}>
-                Start as an employer and explore verified domestic workers nearby using filters like city, skills, experience, and salary.
+                {t.employerHeroSubtitle || 'Start as an employer and explore verified domestic workers nearby using filters like city, skills, experience, and salary.'}
               </p>
 
               {/* Checkmark trust row — exactly as in screenshot */}
@@ -378,7 +433,7 @@ const EmployerDashboard = () => {
                 }}
                   onMouseEnter={e => e.currentTarget.style.background = C.tealHover}
                   onMouseLeave={e => e.currentTarget.style.background = C.teal}
-                >For Employers</button>
+                >{t.employerDashboardTitle || 'For Employers'}</button>
                 <button type="button" onClick={() => navigate('/feedback')} style={{
                   background: 'transparent', color: C.white,
                   border: `2px solid ${C.tealMid}`, borderRadius: 12,
@@ -420,7 +475,7 @@ const EmployerDashboard = () => {
                   ))}
                 </div>
 
-                <PreviewRow title="Your home profile"
+                <PreviewRow title={t.employerYourHomeProfile || 'Your home profile'}
                   meta="Complete details to get better matches"
                   tags={['Address', 'Preferences']} pill="In progress" pillType="progress" />
                 <PreviewRow title="Active job posts"
@@ -443,7 +498,7 @@ const EmployerDashboard = () => {
             fontWeight: 800, fontSize: 26, color: C.navy,
             marginBottom: 36, letterSpacing: '-0.01em',
           }}>
-            How KaamWali.AI works for you
+            {t.employerHowItWorks || 'How KaamWali.AI works for you'}
           </h2>
           <div className="kw-steps-row" style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
             <StepCard number="1" icon="🏠" accent={C.teal}
@@ -466,7 +521,7 @@ const EmployerDashboard = () => {
           display: 'flex', justifyContent: 'space-between', gap: 40, flexWrap: 'wrap',
         }}>
           <TrustItem icon="✔️" title="Verified Profiles"  sub="Every worker is manually verified" />
-          <TrustItem icon="🔒" title="Background Checked" sub="Safe for your home & family" />
+          <TrustItem icon="🔒" title={t.employerTrusted || 'Background Checked'} sub={t.employerTrustedByHomes || 'Safe for your home & family'} />
           <TrustItem icon="⭐" title="Employer Ratings"   sub="Real reviews from real families" />
           <TrustItem icon="🎤" title="Voice Onboarded"    sub="No literacy barrier for workers" />
         </div>
@@ -496,6 +551,63 @@ const EmployerDashboard = () => {
       </section>
 
       {/* ── FOOTER ── */}
+      <section style={{ background: C.white, padding: '0 28px 72px' }}>
+        <div style={{ maxWidth: 1140, margin: '0 auto' }}>
+          <div style={{
+            border: `1px solid ${C.gray200}`,
+            borderRadius: 18,
+            padding: '24px 28px',
+            boxShadow: '0 8px 24px rgba(22,43,34,0.06)',
+          }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: C.navy, marginBottom: 8 }}>
+              Safety alerts
+            </div>
+            <div style={{ fontSize: 14, color: C.gray500, marginBottom: 20 }}>
+              Employers with 2 or more incidents, or already blocked, are surfaced here automatically.
+            </div>
+
+            {riskyEmployers.length === 0 && (
+              <div style={{ fontSize: 14, color: C.gray500 }}>
+                No employers with serious incidents right now.
+              </div>
+            )}
+
+            {riskyEmployers.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {riskyEmployers.map((employer) => (
+                  <div
+                    key={employer.phone}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 16,
+                      padding: '14px 16px',
+                      borderRadius: 14,
+                      background: employer.isBlocked ? '#FEF2F2' : '#FFF7ED',
+                      border: `1px solid ${employer.isBlocked ? '#FECACA' : '#FED7AA'}`,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, color: C.gray900 }}>
+                        {employer.name || 'Employer'} ({employer.phone})
+                      </div>
+                      <div style={{ fontSize: 13, color: C.gray500, marginTop: 4 }}>
+                        {employer.city || 'City unavailable'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: employer.isBlocked ? '#B91C1C' : '#C2410C' }}>
+                      {employer.safetyIncidents || 0} incident{(employer.safetyIncidents || 0) === 1 ? '' : 's'}
+                      {employer.isBlocked ? ' - BLOCKED' : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       <footer style={{ background: C.navy, padding: '56px 28px 0' }}>
         <div style={{ maxWidth: 1140, margin: '0 auto' }}>
           <div className="kw-footer-inner" style={{

@@ -1,11 +1,7 @@
 // frontend/WorkersList.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const API_BASE =
-  window.location.hostname === 'localhost'
-    ? 'http://localhost:4000'
-    : 'https://kaamwali-ai-backend.onrender.com';
+import { API_BASE } from '../api';
 
 export default function WorkersList() {
   const navigate = useNavigate();
@@ -21,6 +17,11 @@ export default function WorkersList() {
     verification: '', // ← NEW: verification filter
     sortByTrust: 'yes',
   });
+
+  const handleHireClick = (worker) => {
+    console.log("Hiring:", worker);
+    // later open dialog here
+  };
 
   const theme = {
     bg: '#f5f9f7',
@@ -459,7 +460,24 @@ export default function WorkersList() {
                               {w.isHired ? 'Hired' : 'Available'}
                             </span>
 
-                            {/* ← NEW: VERIFICATION BADGES */}
+                            {/* ← NEW: RECOMMENDATION BADGE */}
+                            {w.candidateScore && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: w.candidateScore >= 80 ? '#DCFCE7' : w.candidateScore >= 60 ? '#FEF08A' : '#FECACA',
+                                  color: w.candidateScore >= 80 ? '#166534' : w.candidateScore >= 60 ? '#B45309' : '#DC2626',
+                                }}
+                                title={`Recommendation Score: ${Math.round(w.candidateScore)}`}
+                              >
+                                {w.candidateScore >= 80 ? '🌟 Top Match' : w.candidateScore >= 60 ? '⭐ Recommended' : '✓ Consider'}
+                              </span>
+                            )}
+
+                            {/* ← VERIFICATION BADGES */}
                             {w.verificationLevel === 'police' && (
                               <span
                                 style={{
@@ -486,6 +504,34 @@ export default function WorkersList() {
                                 }}
                               >
                                 ID Verified
+                              </span>
+                            )}
+                            {w.employerRiskLevel === 'HIGH' && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: '#FEE2E2',
+                                  color: '#B91C1C',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                🚨 Risky Employer
+                              </span>
+                            )}
+                            {w.employerRiskLevel === 'MEDIUM' && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: '#FEF3C7',
+                                  color: '#B45309',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                ⚠️ Caution
                               </span>
                             )}
                           </div>
@@ -627,6 +673,29 @@ export default function WorkersList() {
                                 })()}
                               </div>
                             )}
+
+                            {/* ← NEW: Recommendation Score */}
+                            {w.candidateScore && w.cumulativeSafetyScore !== undefined && (
+                              <div style={{ 
+                                marginTop: 8,
+                                padding: '6px 8px',
+                                background: '#F0F9F6',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: theme.primary,
+                                textAlign: 'center',
+                              }}>
+                                <div>Match Score: {Math.round(w.candidateScore)}/100</div>
+                                <div>Safety: {Math.round(w.cumulativeSafetyScore)}/100</div>
+                                {typeof w.safetyScore === 'number' && (
+                                  <div>Worker Safety Score: {Math.round(w.safetyScore)}/100</div>
+                                )}
+                                {w.currentEmployerPhone && (
+                                  <div>Employer Risk: {w.employerRiskLevel || 'LOW'}</div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -651,6 +720,22 @@ export default function WorkersList() {
                           }}
                         >
                           View Resume
+                        </button>
+
+                        <button
+                          style={{
+                            marginTop: '8px',
+                            padding: '10px 18px',
+                            background: '#1f2937',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleHireClick(w)}
+                        >
+                          Hire this employee
                         </button>
                       </div>
                     </div>

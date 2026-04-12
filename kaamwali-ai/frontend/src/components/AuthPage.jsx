@@ -1,84 +1,142 @@
 // frontend/src/components/AuthPage.jsx
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { API_BASE } from '../api';
+import { sendOtp as firebaseSendOtp, verifyOtp as firebaseVerifyOtp } from '../firebaseAuth';
+
+const initialFormData = {
+  name: '',
+  phone: '',
+  email: '',
+  city: '',
+  password: '',
+  otp: '',
+};
+
+const initialSignupStep = 'details';
 
 const AuthPage = ({ onAuthSuccess }) => {
   const [mode, setMode] = useState('login');
   const [userType, setUserType] = useState('worker');
-const [formData, setFormData] = useState({
-  name: "",
-  phone: "",
-  email: "",
-  city: "",
-  password: ""
-});
-const handleChange = (e) => {
-  setFormData({
-    ...formData,
-    [e.target.name]: e.target.value
-  });
-};
+  const [formData, setFormData] = useState(initialFormData);
+  const [signupStep, setSignupStep] = useState(initialSignupStep);
+  const [submitting, setSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
   const { language, setLanguage, messages, loadingTranslations } = useLanguage();
 
   const isWorker = userType === 'worker';
   const t = (messages && messages.auth) || {};
 
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const resetSignupFlow = () => {
+    setSignupStep(initialSignupStep);
+    setStatusMessage('');
+    setFormData((prev) => ({ ...prev, otp: '' }));
+  };
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setStatusMessage('');
+    if (nextMode === 'signup') {
+      setSignupStep(initialSignupStep);
+    }
+  };
+
+  const sendOtp = async () => {
+    try {
+      await firebaseSendOtp(formData.phone);
+      setSignupStep('otp');
+      setStatusMessage('OTP sent to your phone');
+    } catch (err) {
+      setStatusMessage(err.message || 'Failed to send OTP');
+    }
+  };
+
+  const verifyOtp = async () => {
+    try {
+      await firebaseVerifyOtp(formData.otp);
+      setSignupStep('password');
+      setStatusMessage('Phone verified!');
+    } catch (err) {
+      setStatusMessage('Invalid OTP');
+    }
+  };
+
+  const setPassword = async () => {
+    const res = await fetch(`${API_BASE}/api/set-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: formData.phone,
+        password: formData.password,
+        role: userType,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || data.message || 'Failed to set password');
+    }
+    setStatusMessage('Account created successfully. Please log in.');
+    setMode('login');
+    setSignupStep(initialSignupStep);
+    setFormData((prev) => ({
+      ...prev,
+      password: '',
+      otp: '',
+    }));
+  };
+
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    setSubmitting(true);
+    setStatusMessage('');
 
-  try {
-    if (mode === "signup") {
-      const res = await fetch("http://localhost:4000/api/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ...formData,
-          role: userType
-        })
-      });
-
-      const data = await res.json();
-      console.log(data);
-
-      if (res.ok) {
- alert("Account created successfully! Please log in.");
-  setMode("login");
-} else {
-  alert(data.error);
-}
-      
-    }
-
-    if (mode === "login") {
-      const res = await fetch("http://localhost:4000/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          phone: formData.phone,
-          
-          password: formData.password
-        })
-      });
-
-      const data = await res.json();
-      console.log(data);
-
-      if (data.user) {
-        alert("Login success!");
-        onAuthSuccess(userType);
+    try {
+      if (mode === 'signup') {
+        if (signupStep === 'details') {
+          await sendOtp();
+        } else if (signupStep === 'otp') {
+          await verifyOtp();
+        } else {
+          await setPassword();
+        }
       } else {
-        alert(data.error);
+        const res = await fetch(`${API_BASE}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: formData.phone,
+            password: formData.password,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.user) {
+          throw new Error(data.error || data.message || 'Login failed');
+        }
+
+        setStatusMessage('Login success!');
+        onAuthSuccess(data.user.role || userType, data.user);
       }
+    } catch (err) {
+      setStatusMessage(err.message || 'Error connecting to server');
+    } finally {
+      setSubmitting(false);
     }
-  } catch (err) {
-    console.log(err);
-    alert("Error connecting to server");
-  }
-};
+  };
+
+  const signupButtonLabel =
+    signupStep === 'details'
+      ? 'Send OTP'
+      : signupStep === 'otp'
+      ? 'Verify OTP'
+      : 'Set Password';
 
   return (
     <>
@@ -292,18 +350,21 @@ const handleChange = (e) => {
           cursor: pointer;
         }
 
-        .kw-submit {
+        .kw-submit, .kw-secondary {
           padding: 18px;
           border: none;
           border-radius: 28px;
-          background: #1a1a2e;
-          color: white;
           font-size: 16px;
           font-weight: 600;
           cursor: pointer;
           margin-top: 8px;
-          box-shadow: 0 4px 12px rgba(26, 26, 46, 0.3);
           transition: all 0.3s ease;
+        }
+
+        .kw-submit {
+          background: #1a1a2e;
+          color: white;
+          box-shadow: 0 4px 12px rgba(26, 26, 46, 0.3);
         }
 
         .kw-submit:hover {
@@ -312,8 +373,17 @@ const handleChange = (e) => {
           box-shadow: 0 6px 16px rgba(26, 26, 46, 0.4);
         }
 
-        .kw-submit:active {
-          transform: translateY(0);
+        .kw-secondary {
+          background: #f3f4f6;
+          color: #374151;
+        }
+
+        .kw-status {
+          padding: 12px 16px;
+          border-radius: 16px;
+          font-size: 14px;
+          background: #eef2ff;
+          color: #3730a3;
         }
 
         .kw-auth-right {
@@ -346,7 +416,7 @@ const handleChange = (e) => {
           .kw-auth-shell {
             flex-direction: column;
           }
-          
+
           .kw-auth-right {
             display: none;
           }
@@ -372,11 +442,11 @@ const handleChange = (e) => {
           }
         }
       `}</style>
-      
+
       <div className="kw-auth-shell">
         <div className="kw-auth-left">
           <div className="kw-auth-content">
-            <div className="kw-logo">{t.logo}</div>
+            <div className="kw-logo">{t.logo || 'KaamWali.AI'}</div>
 
             <h1 className="kw-heading">
               {mode === 'login' ? t.welcomeBack : t.createAccount}
@@ -397,7 +467,7 @@ const handleChange = (e) => {
               </select>
               {loadingTranslations && (
                 <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
-                  Loading language…
+                  Loading language...
                 </div>
               )}
             </div>
@@ -406,14 +476,20 @@ const handleChange = (e) => {
               <button
                 type="button"
                 className={`kw-role-btn ${isWorker ? 'kw-active' : ''}`}
-                onClick={() => setUserType('worker')}
+                onClick={() => {
+                  setUserType('worker');
+                  resetSignupFlow();
+                }}
               >
                 {t.iAmWorker}
               </button>
               <button
                 type="button"
                 className={`kw-role-btn ${!isWorker ? 'kw-active' : ''}`}
-                onClick={() => setUserType('employer')}
+                onClick={() => {
+                  setUserType('employer');
+                  resetSignupFlow();
+                }}
               >
                 {t.iAmEmployer}
               </button>
@@ -423,14 +499,14 @@ const handleChange = (e) => {
               <button
                 type="button"
                 className={`kw-tab ${mode === 'login' ? 'kw-active' : ''}`}
-                onClick={() => setMode('login')}
+                onClick={() => switchMode('login')}
               >
                 {t.login}
               </button>
               <button
                 type="button"
                 className={`kw-tab ${mode === 'signup' ? 'kw-active' : ''}`}
-                onClick={() => setMode('signup')}
+                onClick={() => switchMode('signup')}
               >
                 {t.signup}
               </button>
@@ -440,13 +516,12 @@ const handleChange = (e) => {
               {mode === 'login' ? (
                 <>
                   <div className="kw-field">
-                    <label className="kw-label">
-                      {t.emailPhone}
-                    </label>
+                    <label className="kw-label">{t.emailPhone}</label>
                     <input
-                    name="phone"
+                      name="phone"
                       type="text"
                       className="kw-input"
+                      value={formData.phone}
                       onChange={handleChange}
                       placeholder={t.emailPhonePlaceholder}
                       required
@@ -456,9 +531,10 @@ const handleChange = (e) => {
                   <div className="kw-field">
                     <label className="kw-label">{t.password}</label>
                     <input
-                    name="password"
+                      name="password"
                       type="password"
                       className="kw-input"
+                      value={formData.password}
                       onChange={handleChange}
                       placeholder={t.passwordPlaceholder}
                       required
@@ -471,142 +547,136 @@ const handleChange = (e) => {
                     </button>
                   </div>
 
-                  <button type="submit" className="kw-submit">
-                    {t.loginButton}
+                  <button type="submit" className="kw-submit" disabled={submitting}>
+                    {submitting ? 'Please wait...' : t.loginButton}
                   </button>
                 </>
               ) : (
                 <>
-                  {isWorker ? (
+                  {signupStep === 'details' && (
                     <>
                       <div className="kw-field">
                         <label className="kw-label">{t.name}</label>
                         <input
-                        name="name"
+                          name="name"
                           type="text"
                           className="kw-input"
-                          placeholder={t.fullNamePlaceholder}
+                          placeholder={isWorker ? t.fullNamePlaceholder : t.namePlaceholder}
+                          value={formData.name}
                           onChange={handleChange}
                           required
                         />
                       </div>
 
                       <div className="kw-field">
-                        <label className="kw-label">
-                          {t.phoneNumber}
-                        </label>
+                        <label className="kw-label">{t.phoneNumber || 'Phone number'}</label>
                         <input
-                        name="phone"
+                          name="phone"
                           type="tel"
                           className="kw-input"
                           placeholder={t.phonePlaceholder}
+                          value={formData.phone}
                           onChange={handleChange}
                           required
                         />
                       </div>
 
+                      {!isWorker && (
+                        <div className="kw-field">
+                          <label className="kw-label">{t.email}</label>
+                          <input
+                            name="email"
+                            type="email"
+                            className="kw-input"
+                            placeholder={t.emailPlaceholder}
+                            value={formData.email}
+                            onChange={handleChange}
+                            required
+                          />
+                        </div>
+                      )}
+
                       <div className="kw-field">
-                        <label className="kw-label">
-                          {t.cityArea}
-                        </label>
+                        <label className="kw-label">{isWorker ? t.cityArea : t.city}</label>
                         <input
-                        name="city"
+                          name="city"
                           type="text"
                           className="kw-input"
-                          onChange={handleChange}
-                          placeholder={t.cityAreaPlaceholder}
-                          required
-                        />
-                      </div>
-
-                      <div className="kw-field">
-                        <label className="kw-label">
-                          {t.password}
-                        </label>
-                        <input
-                        name="password"
-                          type="password"
-                          className="kw-input"
-                          placeholder={t.passwordMin}
+                          placeholder={isWorker ? t.cityAreaPlaceholder : t.cityPlaceholder}
+                          value={formData.city}
                           onChange={handleChange}
                           required
                         />
                       </div>
 
                       <div className="kw-checkbox-row">
-                        <input type="checkbox" id="worker-consent" required />
-                        <label htmlFor="worker-consent">
-                          {t.workerConsent}
-                        </label>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="kw-field">
-                        <label className="kw-label">{t.name}</label>
-                        <input
-                        name="name"
-                          type="text"
-                          className="kw-input"
-                          placeholder={t.namePlaceholder}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="kw-field">
-                        <label className="kw-label">{t.email}</label>
-                        <input
-                        name="email"
-                          type="email"
-                          className="kw-input"
-                          placeholder={t.emailPlaceholder}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="kw-field">
-                        <label className="kw-label">{t.city}</label>
-                        <input
-                        name="city"
-                          type="text"
-                          className="kw-input"
-                          placeholder={t.cityPlaceholder}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="kw-field">
-                        <label className="kw-label">
-                          {t.password}
-                        </label>
-                        <input
-                        name="password"
-                          type="password"
-                          className="kw-input"
-                          placeholder={t.passwordMin}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-
-                      <div className="kw-checkbox-row">
-                        <input type="checkbox" id="employer-consent" required />
-                        <label htmlFor="employer-consent">
-                          {t.employerConsent}
+                        <input type="checkbox" id={isWorker ? 'worker-consent' : 'employer-consent'} required />
+                        <label htmlFor={isWorker ? 'worker-consent' : 'employer-consent'}>
+                          {isWorker ? t.workerConsent : t.employerConsent}
                         </label>
                       </div>
                     </>
                   )}
 
-                  <button type="submit" className="kw-submit">
-                    {t.createAccountButton}
+                  {signupStep === 'otp' && (
+                    <div className="kw-field">
+                      <label className="kw-label">Enter OTP</label>
+                      <input
+                        name="otp"
+                        type="text"
+                        className="kw-input"
+                        placeholder="6-digit OTP"
+                        value={formData.otp}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {signupStep === 'password' && (
+                    <div className="kw-field">
+                      <label className="kw-label">{t.password}</label>
+                      <input
+                        name="password"
+                        type="password"
+                        className="kw-input"
+                        placeholder={t.passwordMin}
+                        value={formData.password}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <button type="submit" className="kw-submit" disabled={submitting}>
+                    {submitting ? 'Please wait...' : signupButtonLabel}
                   </button>
+
+                  {signupStep === 'otp' && (
+                    <button
+                      type="button"
+                      className="kw-secondary"
+                      disabled={submitting}
+                      onClick={async () => {
+                        setSubmitting(true);
+                        try {
+                          await sendOtp();
+                        } catch (err) {
+                          setStatusMessage(err.message || 'Failed to resend OTP');
+                        } finally {
+                          setSubmitting(false);
+                        }
+                      }}
+                    >
+                      Resend OTP
+                    </button>
+                  )}
                 </>
               )}
             </form>
+
+            {statusMessage && <div className="kw-status" style={{ marginTop: 16 }}>{statusMessage}</div>}
+            <div id="recaptcha-container"></div>
           </div>
         </div>
 
@@ -623,5 +693,4 @@ const handleChange = (e) => {
     </>
   );
 };
-
 export default AuthPage;

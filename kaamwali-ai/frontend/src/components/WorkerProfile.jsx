@@ -97,11 +97,60 @@ const handlePDFUpload = async (e) => {
           <div>
             <h2 className="card-title">{worker.name}</h2>
 
-            <p className="chip chip-trust">
-              Trust Score
-              <span className="chip-score">{worker.trustScore}</span>
-              <span className="chip-text">/ 100</span>
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div>
+                <p className="chip chip-trust">
+                  Trust Score
+                  <span className="chip-score">{worker.trustScore}</span>
+                  <span className="chip-text">/ 100</span>
+                </p>
+              </div>
+              {worker.verificationLevel === 'id' && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: '#ECFDF5',
+                    color: '#166534',
+                  }}
+                >
+                  ✅ ID Verified
+                </span>
+              )}
+              {worker.verificationLevel === 'police' && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: '#FEE2E2',
+                    color: '#B91C1C',
+                  }}
+                >
+                  🔐 Police‑verified
+                </span>
+              )}
+              {worker.safetyIncidents > 0 && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: '#FEE2E2',
+                    color: '#B91C1C',
+                  }}
+                >
+                  {worker.safetyIncidents} safety incident{worker.safetyIncidents === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
 
             <p className="text-small">
               <span className="badge-verified">Verified voice profile</span> ·

@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useContext,
 } from 'react';
+import { API_BASE } from '../api';
 
 const LanguageContext = createContext();
 
@@ -31,7 +32,7 @@ export const LanguageProvider = ({ children }) => {
     const fetchTranslations = async () => {
       setLoadingTranslations(true);
       try {
-       const res = await fetch(`http://localhost:4000/api/i18n?lang=${language}`);
+        const res = await fetch(`${API_BASE}/api/i18n?lang=${language}`);
 
         const data = await res.json();
         setMessages(data || {});
