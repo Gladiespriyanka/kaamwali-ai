@@ -152,7 +152,7 @@ const AppRoutes = () => {
         <Route
           path="/worker-dashboard"
           element={
-            localStorage.getItem('userRole') === 'worker'
+            userRole === 'worker'
               ? <WorkerDashboard user={currentUser} />
               : <AuthPage onAuthSuccess={handleAuthSuccess} />
           }
@@ -161,7 +161,7 @@ const AppRoutes = () => {
         <Route
           path="/employer-dashboard"
           element={
-            localStorage.getItem('userRole') === 'employer'
+            userRole === 'employer'
               ? <EmployerDashboard user={currentUser} />
               : <AuthPage onAuthSuccess={handleAuthSuccess} />
           }

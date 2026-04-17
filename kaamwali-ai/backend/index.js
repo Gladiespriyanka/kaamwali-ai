@@ -14,6 +14,7 @@ import {
 } from './profileParser.js';
 import { connectDB } from './db.js';
 import i18nRouter from './routes/i18n.js';
+import verifyDocRoute from './VerifydocRoute.js';
 import { CITY_MAP } from './cityMap.js';
 import Sentiment from 'sentiment';  // [web:43]
 import { createWorker } from 'tesseract.js';
@@ -203,6 +204,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use('/api', i18nRouter);
+app.use('/api', verifyDocRoute);
 
 const otpLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
