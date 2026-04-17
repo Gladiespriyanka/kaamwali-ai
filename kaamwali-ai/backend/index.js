@@ -1542,7 +1542,13 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    res.json({ message: 'Login success', user });
+    // Ensure role is always included (fallback to 'worker' if missing)
+    const userWithRole = {
+      ...user,
+      role: user.role || 'worker'
+    };
+
+    res.json({ message: 'Login success', user: userWithRole });
   } catch (err) {
     res.status(500).json({ error: 'Login failed' });
   }

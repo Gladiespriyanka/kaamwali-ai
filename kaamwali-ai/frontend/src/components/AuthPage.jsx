@@ -113,6 +113,7 @@ const AuthPage = ({ onAuthSuccess }) => {
           body: JSON.stringify({
             phone: formData.phone,
             password: formData.password,
+            role: userType,
           }),
         });
 
